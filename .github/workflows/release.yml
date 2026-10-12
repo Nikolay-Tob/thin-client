@@ -1,0 +1,42 @@
+name: Release images
+
+# Manual run: Actions -> "Release images" -> Run workflow.
+# Joins the parts from the "images" branch, verifies SHA256 and publishes a GitHub Release.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag
+        default: v1.0
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: images
+
+      - name: Join parts and verify checksums
+        working-directory: images
+        run: |
+          cat thin-client.img.zip.part* > thin-client.img.zip
+          cat thin-client.vhd.part* > thin-client.vhd
+          sha256sum -c SHA256SUMS.txt
+          rm -f thin-client.img.zip.part* thin-client.vhd.part*
+          ls -lh
+
+      - name: Publish release
+        working-directory: images
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          gh release create "$TAG" thin-client.img.zip thin-client.vhd SHA256SUMS.txt \
+            --repo "$GITHUB_REPOSITORY" --target main \
+            --title "Thin client $TAG (USB kiosk images)" \
+            --notes "Bootable USB thin client (Ubuntu 24.04, RDP/VNC kiosk). thin-client.img.zip: unzip, write to a USB stick (dd / Rufus / balenaEtcher in DD mode); BIOS + UEFI/Secure Boot. thin-client.vhd: dynamic VHD (BIOS) for virtual machines. Checksums: SHA256SUMS.txt."
