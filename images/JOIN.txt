@@ -1,0 +1,9 @@
+Join the parts, then verify against SHA256SUMS.txt:
+
+  Linux/macOS:  cat thin-client.img.zip.part* > thin-client.img.zip
+                cat thin-client.vhd.part*     > thin-client.vhd
+                sha256sum -c SHA256SUMS.txt
+  Windows (cmd): copy /b thin-client.img.zip.part00+thin-client.img.zip.part01+... thin-client.img.zip
+
+thin-client.img.zip -> unzip -> thin-client.img: write to a USB stick (dd / Rufus / balenaEtcher in DD mode).
+thin-client.vhd: dynamic VHD (BIOS) for virtual machines.
