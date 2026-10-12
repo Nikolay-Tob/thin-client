@@ -1,0 +1,2 @@
+# allow the kiosk user to redirect any USB device into the remote session
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", MODE="0666"

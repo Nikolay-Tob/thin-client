@@ -1,0 +1,34 @@
+#!/bin/sh
+# Prepare persistent storage: grow the last (data) partition to fill the device,
+# check/grow its filesystem, mount it on /data and bind NetworkManager profiles from it.
+DEV=$(blkid -L KIOSKDATA 2>/dev/null)
+if [ -b "$DEV" ]; then
+    SYS=/sys/class/block/$(basename "$DEV")
+    PART=$(cat "$SYS/partition" 2>/dev/null)
+    DISK=/dev/$(basename "$(readlink -f "$SYS/..")")
+    DISK_SECT=$(blockdev --getsz "$DISK" 2>/dev/null)
+    START=$(cat "$SYS/start" 2>/dev/null); SIZE=$(cat "$SYS/size" 2>/dev/null)
+    GREW=0
+    if [ -n "$PART" ] && [ -n "$DISK_SECT" ] && [ $((DISK_SECT - START - SIZE)) -gt 8192 ]; then
+        echo ", +" | sfdisk --no-reread -N "$PART" "$DISK" >/dev/null 2>&1
+        partx -u "$DISK" >/dev/null 2>&1 || partprobe "$DISK" >/dev/null 2>&1
+        udevadm settle --timeout=15 >/dev/null 2>&1
+        GREW=1
+    fi
+    if [ $GREW = 1 ]; then
+        e2fsck -fp "$DEV" >/dev/null 2>&1
+        resize2fs "$DEV" >/dev/null 2>&1
+    else
+        e2fsck -p "$DEV" >/dev/null 2>&1
+    fi
+    mkdir -p /data
+    mountpoint -q /data || mount -t ext4 -o noatime "$DEV" /data
+    if mountpoint -q /data; then
+        mkdir -p /data/nm /data/kiosk
+        chown 1000:1000 /data/kiosk; chmod 700 /data/kiosk
+        mkdir -p /etc/NetworkManager/system-connections
+        mountpoint -q /etc/NetworkManager/system-connections || \
+            mount --bind /data/nm /etc/NetworkManager/system-connections
+    fi
+fi
+exit 0

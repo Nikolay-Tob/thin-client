@@ -1,0 +1,13 @@
+[Unit]
+Description=Prepare persistent data partition (grow, check, mount)
+After=systemd-udevd.service systemd-udev-trigger.service local-fs.target
+Before=NetworkManager.service kiosk.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/kiosk-growdata
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

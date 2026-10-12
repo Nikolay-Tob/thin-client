@@ -1,0 +1,24 @@
+[Unit]
+Description=Thin client kiosk session (Xorg + launcher)
+After=systemd-user-sessions.service systemd-logind.service kiosk-growdata.service NetworkManager.service
+Wants=kiosk-growdata.service
+Wants=NetworkManager.service
+
+[Service]
+User=kiosk
+PAMName=login
+TTYPath=/dev/tty1
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+UtmpIdentifier=tty1
+UtmpMode=user
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+ExecStart=/usr/bin/xinit /opt/kiosk/session.sh -- /usr/bin/Xorg :0 vt1 -keeptty -nolisten tcp -noreset
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

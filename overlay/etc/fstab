@@ -1,0 +1,2 @@
+# Root is a read-only squashfs with a RAM overlay (overlayroot).
+# The persistent data partition (LABEL=KIOSKDATA) is mounted on /data by kiosk-growdata.service.
