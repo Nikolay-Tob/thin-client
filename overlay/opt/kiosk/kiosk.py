@@ -31,7 +31,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib, Gdk  # noqa: E402
 
-VERSION = "1.0"
+VERSION = "1.1"
 
 
 def _wait_data():
@@ -49,6 +49,9 @@ DATA_DIR = "/data/kiosk" if PERSISTENT else os.path.expanduser("~/.config/kiosk"
 CONF = os.path.join(DATA_DIR, "config.json")
 CLIENT_LOG = "/tmp/kiosk-client.log"
 VNC_PASS = "/tmp/kiosk-vncpass"
+# one saved NetworkManager profile per link type, not bound to an interface name
+# (interface names differ between computers the flash drive is moved to)
+NM_PROFILE = {"ethernet": "kiosk-ethernet", "wifi": "kiosk-wifi"}
 
 KEYBOARDS = [
     ("us", "English (US)", ["us"], None),
@@ -974,8 +977,39 @@ class Kiosk:
         d, t = self.cur_dev()
         self.wifi_box.set_visible(t == "wifi")
         self.wifi_box.set_no_show_all(t != "wifi")
+        self.load_saved_net()
         if t == "wifi":
             self.scan_wifi()
+
+    def load_saved_net(self):
+        """Show the saved profile of the selected link type in the form."""
+        d, t = self.cur_dev()
+        if not t:
+            return
+        rc, out = run(["nmcli", "-t", "-s", "-f",
+                       "ipv4.method,ipv4.addresses,ipv4.gateway,ipv4.dns,"
+                       "802-11-wireless.ssid,802-11-wireless.hidden,802-11-wireless-security.psk",
+                       "connection", "show", NM_PROFILE[t]], 10)
+        vals = {}
+        if rc == 0:
+            for line in out.splitlines():
+                k, _, v = line.partition(":")
+                v = v.replace("\\:", ":").strip()
+                vals[k] = "" if v == "--" else v
+        manual = vals.get("ipv4.method") == "manual"
+        addr = re.split(r"[,\s|]+", vals.get("ipv4.addresses", "").strip())[0]
+        ip, _, prefix = addr.partition("/")
+        self.n["mode"].set_active_id("manual" if manual else "auto")
+        self.n["ip"].set_text(ip if manual else "")
+        self.n["mask"].set_text(prefix if manual else "")
+        self.n["gw"].set_text(vals.get("ipv4.gateway", "") if manual else "")
+        self.n["dns"].set_text(",".join(x for x in re.split(r"[,\s|]+", vals.get("ipv4.dns", "")) if x)
+                               if manual else "")
+        if t == "wifi":
+            self.n["ssid"].set_text(vals.get("802-11-wireless.ssid", ""))
+            self.n["wpass"].set_text(vals.get("802-11-wireless-security.psk", ""))
+            self.n["hidden"].set_active(vals.get("802-11-wireless.hidden") == "yes")
+        self.on_net_mode_changed()
 
     def on_net_mode_changed(self):
         manual = self.n["mode"].get_active_id() == "manual"
@@ -1043,7 +1077,7 @@ class Kiosk:
         if not dev:
             return
         mode = self.n["mode"].get_active_id()
-        name = "kiosk-" + dev
+        name = NM_PROFILE[typ]
         args = []
         if mode == "manual":
             try:
@@ -1070,8 +1104,9 @@ class Kiosk:
         hidden = self.n["hidden"].get_active()
 
         def work():
-            run(["nmcli", "connection", "delete", name], 10)
-            base = ["nmcli", "connection", "add", "type", typ, "ifname", dev, "con-name", name,
+            for old_name in (name, "kiosk-" + dev):  # the second one: profiles of older versions
+                run(["nmcli", "-w", "30", "connection", "delete", old_name], 40)
+            base = ["nmcli", "connection", "add", "type", typ, "ifname", "*", "con-name", name,
                     "connection.autoconnect", "yes"]
             if typ == "wifi":
                 if not ssid:
@@ -1084,7 +1119,7 @@ class Kiosk:
             rc, out = run(base + args, 20)
             if rc != 0:
                 return rc, out
-            return run(["nmcli", "connection", "up", name], 45)
+            return run(["nmcli", "-w", "40", "connection", "up", name, "ifname", dev], 50)
 
         def done(res):
             rc, out = res

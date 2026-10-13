@@ -29,6 +29,12 @@ if [ -b "$DEV" ]; then
         mkdir -p /etc/NetworkManager/system-connections
         mountpoint -q /etc/NetworkManager/system-connections || \
             mount --bind /data/nm /etc/NetworkManager/system-connections
+        # Ubuntu's NetworkManager saves new connections as netplan YAML in /etc/netplan:
+        # keep it on the data partition and regenerate the NM profiles before NetworkManager starts.
+        mkdir -p /data/netplan /etc/netplan
+        chmod 700 /data/netplan
+        mountpoint -q /etc/netplan || mount --bind /data/netplan /etc/netplan
+        netplan generate >/dev/null 2>&1
     fi
 fi
 exit 0

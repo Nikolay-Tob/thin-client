@@ -1,13 +1,18 @@
 name: Release images
 
 # Manual run: Actions -> "Release images" -> Run workflow.
-# Joins the parts from the "images" branch, verifies SHA256 and publishes a GitHub Release.
+# Joins the parts of thin-client.img.zip from the given branch, verifies SHA256, builds the VHD
+# and publishes a GitHub Release (thin-client.img, thin-client.vhd, SHA256SUMS.txt).
 on:
   workflow_dispatch:
     inputs:
       tag:
         description: Release tag
-        default: v1.0
+        default: v1.1
+        required: true
+      branch:
+        description: Branch with the image parts (images/ folder)
+        default: images
         required: true
 
 permissions:
@@ -19,15 +24,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: images
+          ref: ${{ inputs.branch }}
 
-      - name: Join parts and verify checksums
+      - name: Join parts, verify, unzip
         working-directory: images
         run: |
           cat thin-client.img.zip.part* > thin-client.img.zip
-          cat thin-client.vhd.part* > thin-client.vhd
           sha256sum -c SHA256SUMS.txt
-          rm -f thin-client.img.zip.part* thin-client.vhd.part*
+          rm -f thin-client.img.zip.part*
+          unzip -q thin-client.img.zip
+          rm thin-client.img.zip
+          ls -lh
+
+      - name: Build VHD (dynamic, 4 GiB virtual size)
+        working-directory: images
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq qemu-utils
+          cp thin-client.img vhd-src.img
+          truncate -s 4096M vhd-src.img
+          qemu-img convert -f raw -O vpc -o subformat=dynamic,force_size=on vhd-src.img thin-client.vhd
+          rm vhd-src.img
+          sha256sum thin-client.img thin-client.vhd > SHA256SUMS.txt
+          cat SHA256SUMS.txt
           ls -lh
 
       - name: Publish release
@@ -36,7 +54,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag }}
         run: |
-          gh release create "$TAG" thin-client.img.zip thin-client.vhd SHA256SUMS.txt \
+          gh release create "$TAG" thin-client.img thin-client.vhd SHA256SUMS.txt \
             --repo "$GITHUB_REPOSITORY" --target main \
             --title "Thin client $TAG (USB kiosk images)" \
-            --notes "Bootable USB thin client (Ubuntu 24.04, RDP/VNC kiosk). thin-client.img.zip: unzip, write to a USB stick (dd / Rufus / balenaEtcher in DD mode); BIOS + UEFI/Secure Boot. thin-client.vhd: dynamic VHD (BIOS) for virtual machines. Checksums: SHA256SUMS.txt."
+            --notes "Bootable USB thin client (Ubuntu 24.04, RDP/VNC kiosk). thin-client.img: write to a USB stick (dd / Rufus / balenaEtcher in DD mode), BIOS + UEFI/Secure Boot. thin-client.vhd: dynamic VHD (BIOS) for virtual machines. Checksums: SHA256SUMS.txt. 1.1: network settings (static IP, Wi-Fi) now persist across reboots."

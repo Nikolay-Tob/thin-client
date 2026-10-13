@@ -443,7 +443,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib, Gdk  # noqa: E402
 
-VERSION = "1.0"
+VERSION = "1.1"
 
 
 def _wait_data():
@@ -461,6 +461,9 @@ DATA_DIR = "/data/kiosk" if PERSISTENT else os.path.expanduser("~/.config/kiosk"
 CONF = os.path.join(DATA_DIR, "config.json")
 CLIENT_LOG = "/tmp/kiosk-client.log"
 VNC_PASS = "/tmp/kiosk-vncpass"
+# one saved NetworkManager profile per link type, not bound to an interface name
+# (interface names differ between computers the flash drive is moved to)
+NM_PROFILE = {"ethernet": "kiosk-ethernet", "wifi": "kiosk-wifi"}
 
 KEYBOARDS = [
     ("us", "English (US)", ["us"], None),
@@ -1386,8 +1389,39 @@ class Kiosk:
         d, t = self.cur_dev()
         self.wifi_box.set_visible(t == "wifi")
         self.wifi_box.set_no_show_all(t != "wifi")
+        self.load_saved_net()
         if t == "wifi":
             self.scan_wifi()
+
+    def load_saved_net(self):
+        """Show the saved profile of the selected link type in the form."""
+        d, t = self.cur_dev()
+        if not t:
+            return
+        rc, out = run(["nmcli", "-t", "-s", "-f",
+                       "ipv4.method,ipv4.addresses,ipv4.gateway,ipv4.dns,"
+                       "802-11-wireless.ssid,802-11-wireless.hidden,802-11-wireless-security.psk",
+                       "connection", "show", NM_PROFILE[t]], 10)
+        vals = {}
+        if rc == 0:
+            for line in out.splitlines():
+                k, _, v = line.partition(":")
+                v = v.replace("\\:", ":").strip()
+                vals[k] = "" if v == "--" else v
+        manual = vals.get("ipv4.method") == "manual"
+        addr = re.split(r"[,\s|]+", vals.get("ipv4.addresses", "").strip())[0]
+        ip, _, prefix = addr.partition("/")
+        self.n["mode"].set_active_id("manual" if manual else "auto")
+        self.n["ip"].set_text(ip if manual else "")
+        self.n["mask"].set_text(prefix if manual else "")
+        self.n["gw"].set_text(vals.get("ipv4.gateway", "") if manual else "")
+        self.n["dns"].set_text(",".join(x for x in re.split(r"[,\s|]+", vals.get("ipv4.dns", "")) if x)
+                               if manual else "")
+        if t == "wifi":
+            self.n["ssid"].set_text(vals.get("802-11-wireless.ssid", ""))
+            self.n["wpass"].set_text(vals.get("802-11-wireless-security.psk", ""))
+            self.n["hidden"].set_active(vals.get("802-11-wireless.hidden") == "yes")
+        self.on_net_mode_changed()
 
     def on_net_mode_changed(self):
         manual = self.n["mode"].get_active_id() == "manual"
@@ -1455,7 +1489,7 @@ class Kiosk:
         if not dev:
             return
         mode = self.n["mode"].get_active_id()
-        name = "kiosk-" + dev
+        name = NM_PROFILE[typ]
         args = []
         if mode == "manual":
             try:
@@ -1482,8 +1516,9 @@ class Kiosk:
         hidden = self.n["hidden"].get_active()
 
         def work():
-            run(["nmcli", "connection", "delete", name], 10)
-            base = ["nmcli", "connection", "add", "type", typ, "ifname", dev, "con-name", name,
+            for old_name in (name, "kiosk-" + dev):  # the second one: profiles of older versions
+                run(["nmcli", "-w", "30", "connection", "delete", old_name], 40)
+            base = ["nmcli", "connection", "add", "type", typ, "ifname", "*", "con-name", name,
                     "connection.autoconnect", "yes"]
             if typ == "wifi":
                 if not ssid:
@@ -1496,7 +1531,7 @@ class Kiosk:
             rc, out = run(base + args, 20)
             if rc != 0:
                 return rc, out
-            return run(["nmcli", "connection", "up", name], 45)
+            return run(["nmcli", "-w", "40", "connection", "up", name, "ifname", dev], 50)
 
         def done(res):
             rc, out = res
@@ -1617,6 +1652,12 @@ if [ -b "$DEV" ]; then
         mkdir -p /etc/NetworkManager/system-connections
         mountpoint -q /etc/NetworkManager/system-connections || \
             mount --bind /data/nm /etc/NetworkManager/system-connections
+        # Ubuntu's NetworkManager saves new connections as netplan YAML in /etc/netplan:
+        # keep it on the data partition and regenerate the NM profiles before NetworkManager starts.
+        mkdir -p /data/netplan /etc/netplan
+        chmod 700 /data/netplan
+        mountpoint -q /etc/netplan || mount --bind /data/netplan /etc/netplan
+        netplan generate >/dev/null 2>&1
     fi
 fi
 exit 0
@@ -1780,10 +1821,10 @@ b86aaef6227a5824e04d89c3ce772d8479fadd5e6a1e13d908cce627bfd5f7cc  overlay/etc/sy
 41f6a7b7e7d48646734c2c937f4fc1eef56102048a63420d349bb6d2155af230  overlay/etc/systemd/system/kiosk-growdata.service
 9fbf7d8db6455969f2e62cba6087cdf04f5170f6553fa5bf34ea4ad3bcf19769  overlay/etc/systemd/system/kiosk.service
 6a2a46a868a19fdbab9db2c85831059c428cfabc94ad9b461b8a6c4a4f07c6b4  overlay/etc/udev/rules.d/90-kiosk-usb.rules
-3d95432648b2c4960b1c3c4efc7c2551cbf80a3b5b0086bf65aa94d4a189ce67  overlay/opt/kiosk/kiosk.py
+1bb6d553a505123fa53214d74618f21d89af774d5ee04c5919272de8f3f3a15e  overlay/opt/kiosk/kiosk.py
 a838dc4e90eb75bd01d0732accfa7449b7ecc9f345bf2a57a08d7ea1f7cc4c06  overlay/opt/kiosk/rc.xml
 ed3602962138a6b2408c77bbb1eda7cc8065f2bbc6a965e4d19727f1d70ddb39  overlay/opt/kiosk/session.sh
-4433959e0fd6057b7adc12bfb850b403b1c3d05a4b6dbb62406401e935bde985  overlay/usr/local/sbin/kiosk-growdata
+94c0c1bde0f7cb4817684f73d8b01bc193828656ab99fe38ae63f0a125b2bcdb  overlay/usr/local/sbin/kiosk-growdata
 ed9dca7b69a5a730be1a75a81bfa0816761492481c612d51c267d458743d65f8  test/mk-test-image.sh
 e76eb83ffb324ff644b69fb65d8ab6cec97d35369d2a1056bc9513a397b5360a  test/qmon.py
 d39714cda94e064594b9aac27d7931c744d1354fc4440fba6b3f3f8c2776fbd8  test/rdpsrv.sh
