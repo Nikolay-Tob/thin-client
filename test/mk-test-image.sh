@@ -6,7 +6,7 @@ cd /work/build
 cp disk.img test.img
 rm -rf td; mkdir -p td/kiosk td/nm
 cat > td/kiosk/config.json <<J
-{"lang":"ru","default":"t1","autoreconnect":true,"keyboard":"us",
+{"lang":"ru","default":"t1","autoreconnect":true,"keyboard":"us-ru-alt",
  "profiles":[{"id":"t1","name":"Test VNC","proto":"vnc","host":"10.0.2.2","port":"5900","user":"","password":"test123","domain":"","fullscreen":true,"multimon":false,"width":1280,"height":720,"sound":true,"clipboard":true,"usb":false,"ignorecert":true,"extra":""}]}
 J
 chown -R 1000:1000 td/kiosk; chmod 700 td/kiosk; chown 0:0 td/nm

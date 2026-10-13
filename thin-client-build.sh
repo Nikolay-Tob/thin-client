@@ -443,7 +443,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib, Gdk  # noqa: E402
 
-VERSION = "1.1"
+VERSION = "1.2"
 
 
 def _wait_data():
@@ -465,11 +465,14 @@ VNC_PASS = "/tmp/kiosk-vncpass"
 # (interface names differ between computers the flash drive is moved to)
 NM_PROFILE = {"ethernet": "kiosk-ethernet", "wifi": "kiosk-wifi"}
 
+# NB: layout switching must not use Alt+Shift or Ctrl+Shift: those combinations are part of the
+# Ctrl+Alt+Shift hotkeys, and X switches the group before the hotkey letter arrives, so the hotkey is lost.
 KEYBOARDS = [
     ("us", "English (US)", ["us"], None),
-    ("us-ru-alt", "English + Русская (Alt+Shift)", ["us,ru"], "grp:alt_shift_toggle"),
-    ("us-ru-ctrl", "English + Русская (Ctrl+Shift)", ["us,ru"], "grp:ctrl_shift_toggle"),
+    ("us-ru-caps", "English + Русская (CapsLock)", ["us,ru"], "grp:caps_toggle"),
+    ("us-ru-win", "English + Русская (Win+Пробел)", ["us,ru"], "grp:win_space_toggle"),
 ]
+OLD_KEYBOARD_IDS = {"us-ru-alt": "us-ru-caps", "us-ru-ctrl": "us-ru-caps"}
 
 TR = {
     "ru": {
@@ -614,7 +617,7 @@ def apply_keyboard(key):
 class Config:
     def __init__(self):
         self.data = {"lang": "ru", "default": "", "autoreconnect": True,
-                     "keyboard": "us-ru-alt", "profiles": []}
+                     "keyboard": "us-ru-caps", "profiles": []}
         self.load()
 
     def load(self):
@@ -623,6 +626,9 @@ class Config:
                 self.data.update(json.load(f))
         except Exception:  # noqa: BLE001
             pass
+        kb = self.data.get("keyboard")
+        if kb in OLD_KEYBOARD_IDS:  # Alt+Shift / Ctrl+Shift switching broke the hotkeys
+            self.data["keyboard"] = OLD_KEYBOARD_IDS[kb]
 
     def save(self):
         try:
@@ -1672,7 +1678,7 @@ cd /work/build
 cp disk.img test.img
 rm -rf td; mkdir -p td/kiosk td/nm
 cat > td/kiosk/config.json <<J
-{"lang":"ru","default":"t1","autoreconnect":true,"keyboard":"us",
+{"lang":"ru","default":"t1","autoreconnect":true,"keyboard":"us-ru-alt",
  "profiles":[{"id":"t1","name":"Test VNC","proto":"vnc","host":"10.0.2.2","port":"5900","user":"","password":"test123","domain":"","fullscreen":true,"multimon":false,"width":1280,"height":720,"sound":true,"clipboard":true,"usb":false,"ignorecert":true,"extra":""}]}
 J
 chown -R 1000:1000 td/kiosk; chmod 700 td/kiosk; chown 0:0 td/nm
@@ -1821,11 +1827,11 @@ b86aaef6227a5824e04d89c3ce772d8479fadd5e6a1e13d908cce627bfd5f7cc  overlay/etc/sy
 41f6a7b7e7d48646734c2c937f4fc1eef56102048a63420d349bb6d2155af230  overlay/etc/systemd/system/kiosk-growdata.service
 9fbf7d8db6455969f2e62cba6087cdf04f5170f6553fa5bf34ea4ad3bcf19769  overlay/etc/systemd/system/kiosk.service
 6a2a46a868a19fdbab9db2c85831059c428cfabc94ad9b461b8a6c4a4f07c6b4  overlay/etc/udev/rules.d/90-kiosk-usb.rules
-1bb6d553a505123fa53214d74618f21d89af774d5ee04c5919272de8f3f3a15e  overlay/opt/kiosk/kiosk.py
+9ad7344ca3eb63785d4dcbcf7d3056eae65d3bc3aef70dfc75043b7a3e8a481e  overlay/opt/kiosk/kiosk.py
 a838dc4e90eb75bd01d0732accfa7449b7ecc9f345bf2a57a08d7ea1f7cc4c06  overlay/opt/kiosk/rc.xml
 ed3602962138a6b2408c77bbb1eda7cc8065f2bbc6a965e4d19727f1d70ddb39  overlay/opt/kiosk/session.sh
 94c0c1bde0f7cb4817684f73d8b01bc193828656ab99fe38ae63f0a125b2bcdb  overlay/usr/local/sbin/kiosk-growdata
-ed9dca7b69a5a730be1a75a81bfa0816761492481c612d51c267d458743d65f8  test/mk-test-image.sh
+4a7733f237ed0ce1f06686ae02be449c15fcbfabc6c7a7123ea950c76660d837  test/mk-test-image.sh
 e76eb83ffb324ff644b69fb65d8ab6cec97d35369d2a1056bc9513a397b5360a  test/qmon.py
 d39714cda94e064594b9aac27d7931c744d1354fc4440fba6b3f3f8c2776fbd8  test/rdpsrv.sh
 10b8e9bfac8efd870c0e811df98834e296ea9b714c44dac3d7669ac9afc1ab88  test/run-qemu.sh

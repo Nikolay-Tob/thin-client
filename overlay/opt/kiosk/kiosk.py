@@ -31,7 +31,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib, Gdk  # noqa: E402
 
-VERSION = "1.1"
+VERSION = "1.2"
 
 
 def _wait_data():
@@ -53,11 +53,14 @@ VNC_PASS = "/tmp/kiosk-vncpass"
 # (interface names differ between computers the flash drive is moved to)
 NM_PROFILE = {"ethernet": "kiosk-ethernet", "wifi": "kiosk-wifi"}
 
+# NB: layout switching must not use Alt+Shift or Ctrl+Shift: those combinations are part of the
+# Ctrl+Alt+Shift hotkeys, and X switches the group before the hotkey letter arrives, so the hotkey is lost.
 KEYBOARDS = [
     ("us", "English (US)", ["us"], None),
-    ("us-ru-alt", "English + Русская (Alt+Shift)", ["us,ru"], "grp:alt_shift_toggle"),
-    ("us-ru-ctrl", "English + Русская (Ctrl+Shift)", ["us,ru"], "grp:ctrl_shift_toggle"),
+    ("us-ru-caps", "English + Русская (CapsLock)", ["us,ru"], "grp:caps_toggle"),
+    ("us-ru-win", "English + Русская (Win+Пробел)", ["us,ru"], "grp:win_space_toggle"),
 ]
+OLD_KEYBOARD_IDS = {"us-ru-alt": "us-ru-caps", "us-ru-ctrl": "us-ru-caps"}
 
 TR = {
     "ru": {
@@ -202,7 +205,7 @@ def apply_keyboard(key):
 class Config:
     def __init__(self):
         self.data = {"lang": "ru", "default": "", "autoreconnect": True,
-                     "keyboard": "us-ru-alt", "profiles": []}
+                     "keyboard": "us-ru-caps", "profiles": []}
         self.load()
 
     def load(self):
@@ -211,6 +214,9 @@ class Config:
                 self.data.update(json.load(f))
         except Exception:  # noqa: BLE001
             pass
+        kb = self.data.get("keyboard")
+        if kb in OLD_KEYBOARD_IDS:  # Alt+Shift / Ctrl+Shift switching broke the hotkeys
+            self.data["keyboard"] = OLD_KEYBOARD_IDS[kb]
 
     def save(self):
         try:

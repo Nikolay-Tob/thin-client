@@ -8,12 +8,16 @@ on:
     inputs:
       tag:
         description: Release tag
-        default: v1.1
+        default: v1.2
         required: true
       branch:
         description: Branch with the image parts (images/ folder)
         default: images
         required: true
+      delete_branch:
+        description: Delete the branch with image parts after publishing
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -57,4 +61,10 @@ jobs:
           gh release create "$TAG" thin-client.img thin-client.vhd SHA256SUMS.txt \
             --repo "$GITHUB_REPOSITORY" --target main \
             --title "Thin client $TAG (USB kiosk images)" \
-            --notes "Bootable USB thin client (Ubuntu 24.04, RDP/VNC kiosk). thin-client.img: write to a USB stick (dd / Rufus / balenaEtcher in DD mode), BIOS + UEFI/Secure Boot. thin-client.vhd: dynamic VHD (BIOS) for virtual machines. Checksums: SHA256SUMS.txt. 1.1: network settings (static IP, Wi-Fi) now persist across reboots."
+            --notes "Bootable USB thin client (Ubuntu 24.04, RDP/VNC kiosk). thin-client.img: write to a USB stick (dd / Rufus / balenaEtcher in DD mode), BIOS + UEFI/Secure Boot. thin-client.vhd: dynamic VHD (BIOS) for virtual machines. Checksums: SHA256SUMS.txt. 1.2: hotkeys fixed (layout switch is CapsLock now); 1.1: network settings persist across reboots."
+
+      - name: Delete the temporary branch
+        if: ${{ inputs.delete_branch && inputs.branch != 'main' }}
+        env:
+          BRANCH: ${{ inputs.branch }}
+        run: git push origin --delete "$BRANCH"
