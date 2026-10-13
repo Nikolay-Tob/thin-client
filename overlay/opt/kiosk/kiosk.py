@@ -790,7 +790,8 @@ class Kiosk:
                 if p.get("multimon"):
                     cmd.append("-FullScreenMode=All")
             # FullscreenSystemKeys=0: do not grab the keyboard, so the Ctrl+Alt+Shift hotkeys keep working
-            cmd += ["-MenuKey", "none", "-ReconnectOnError=0", "-FullscreenSystemKeys=0"]
+            # DotWhenNoCursor=1: some servers send an invisible cursor; show a dot so the pointer is never lost
+            cmd += ["-MenuKey", "none", "-ReconnectOnError=0", "-FullscreenSystemKeys=0", "-DotWhenNoCursor=1"]
             if p.get("password"):
                 with open(VNC_PASS, "wb") as f:
                     f.write(vnc_obfuscate(p["password"]))

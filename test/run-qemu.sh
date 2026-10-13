@@ -10,7 +10,7 @@ rm -f /work/qmon /work/ser.sock
 exec qemu-system-x86_64 -m 2048 -smp 1 $FW \
   -drive if=none,id=usb0,file=$IMG,format=$FMT,snapshot=${SNAP:-on} \
   -device qemu-xhci -device usb-storage,drive=usb0,bootindex=0 \
-  -vga std -display none \
+  -vga ${VGA:-std} -display none \
   -netdev user,id=n0 -device virtio-net-pci,netdev=n0 \
   -device intel-hda -device hda-duplex \
   -monitor unix:/work/qmon,server,nowait -serial unix:/work/ser.sock,server,nowait

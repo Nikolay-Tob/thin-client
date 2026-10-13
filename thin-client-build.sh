@@ -315,6 +315,13 @@ Section "ServerFlags"
     Option "SuspendTime" "0"
     Option "OffTime" "0"
 EndSection
+
+# Software mouse cursor: the hardware cursor is invisible on some virtual GPUs (VirtualBox VMSVGA, VMware, ...)
+Section "OutputClass"
+    Identifier "kiosk-swcursor"
+    Driver "modesetting"
+    Option "SWcursor" "true"
+EndSection
 __KIT_EOF__
 mkdir -p "$DEST/overlay/etc"
 cat > "$DEST/overlay/etc/fstab" <<'__KIT_EOF__'
@@ -1202,7 +1209,8 @@ class Kiosk:
                 if p.get("multimon"):
                     cmd.append("-FullScreenMode=All")
             # FullscreenSystemKeys=0: do not grab the keyboard, so the Ctrl+Alt+Shift hotkeys keep working
-            cmd += ["-MenuKey", "none", "-ReconnectOnError=0", "-FullscreenSystemKeys=0"]
+            # DotWhenNoCursor=1: some servers send an invisible cursor; show a dot so the pointer is never lost
+            cmd += ["-MenuKey", "none", "-ReconnectOnError=0", "-FullscreenSystemKeys=0", "-DotWhenNoCursor=1"]
             if p.get("password"):
                 with open(VNC_PASS, "wb") as f:
                     f.write(vnc_obfuscate(p["password"]))
@@ -1722,7 +1730,7 @@ rm -f /work/qmon /work/ser.sock
 exec qemu-system-x86_64 -m 2048 -smp 1 $FW \
   -drive if=none,id=usb0,file=$IMG,format=$FMT,snapshot=${SNAP:-on} \
   -device qemu-xhci -device usb-storage,drive=usb0,bootindex=0 \
-  -vga std -display none \
+  -vga ${VGA:-std} -display none \
   -netdev user,id=n0 -device virtio-net-pci,netdev=n0 \
   -device intel-hda -device hda-duplex \
   -monitor unix:/work/qmon,server,nowait -serial unix:/work/ser.sock,server,nowait
@@ -1816,7 +1824,7 @@ dd028468a5d7a13cf9e7776142400c8c110ded810d2b6f6d703eb6473d61fb31  build-all.sh
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  overlay/etc/NetworkManager/conf.d/10-dns-resolved.conf
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  overlay/etc/NetworkManager/conf.d/10-globally-managed-devices.conf
 daecdafe66e474402395c4fb23eb20bb1db1bf45fc8a1da89d286a57570a869e  overlay/etc/NetworkManager/conf.d/kiosk.conf
-8edab7a076b0802812991f94c7bf1fe1556669e91b46020ef11ac4c4b0ed5b09  overlay/etc/X11/xorg.conf.d/10-kiosk.conf
+7a6730e8648c5d4168ba77af4b141db76c7c6abac8eb1becd4a4488b81d5b74b  overlay/etc/X11/xorg.conf.d/10-kiosk.conf
 c20cd567970bb1fd7364af1e68baeb47ad8be67a8ab8766a1ff2031c5141d9cc  overlay/etc/fstab
 48bef90bf3804ed0a3a3a2ad6cb6c2a0ccd06ab0d169e55aba89f92943add2de  overlay/etc/hostname
 8e1cebeaa97f7d2b59e078ffe5c6cb10ad144049277e37d83ef7cecfcf0a0afd  overlay/etc/polkit-1/rules.d/50-kiosk.rules
@@ -1827,14 +1835,14 @@ b86aaef6227a5824e04d89c3ce772d8479fadd5e6a1e13d908cce627bfd5f7cc  overlay/etc/sy
 41f6a7b7e7d48646734c2c937f4fc1eef56102048a63420d349bb6d2155af230  overlay/etc/systemd/system/kiosk-growdata.service
 9fbf7d8db6455969f2e62cba6087cdf04f5170f6553fa5bf34ea4ad3bcf19769  overlay/etc/systemd/system/kiosk.service
 6a2a46a868a19fdbab9db2c85831059c428cfabc94ad9b461b8a6c4a4f07c6b4  overlay/etc/udev/rules.d/90-kiosk-usb.rules
-9ad7344ca3eb63785d4dcbcf7d3056eae65d3bc3aef70dfc75043b7a3e8a481e  overlay/opt/kiosk/kiosk.py
+0a8b0359b3be127fc2c9e9a8104a8a7228bfc0227907113779e583abc1fcff97  overlay/opt/kiosk/kiosk.py
 a838dc4e90eb75bd01d0732accfa7449b7ecc9f345bf2a57a08d7ea1f7cc4c06  overlay/opt/kiosk/rc.xml
 ed3602962138a6b2408c77bbb1eda7cc8065f2bbc6a965e4d19727f1d70ddb39  overlay/opt/kiosk/session.sh
 94c0c1bde0f7cb4817684f73d8b01bc193828656ab99fe38ae63f0a125b2bcdb  overlay/usr/local/sbin/kiosk-growdata
 4a7733f237ed0ce1f06686ae02be449c15fcbfabc6c7a7123ea950c76660d837  test/mk-test-image.sh
 e76eb83ffb324ff644b69fb65d8ab6cec97d35369d2a1056bc9513a397b5360a  test/qmon.py
 d39714cda94e064594b9aac27d7931c744d1354fc4440fba6b3f3f8c2776fbd8  test/rdpsrv.sh
-10b8e9bfac8efd870c0e811df98834e296ea9b714c44dac3d7669ac9afc1ab88  test/run-qemu.sh
+8f60e334c5e53654d1c6a2083341465866a11326e0d90520c91fa3faa25dc23d  test/run-qemu.sh
 046a8b46568db8a62e395a65e470af520544396c4df7e9b5f68b93d3c2c96f13  test/ser.py
 43bdaf2e4726e98fec849d41c687a8fb5ddca3feb96fb45524fa4b82b6d804ae  test/uitest.py
 f666170a9c3910d292a7c41229b33be88c014765909be84f9a001322096c9da4  test/uitest.sh
