@@ -12,6 +12,7 @@
     <keybind key="C-A-S-p"><action name="Execute"><command>/opt/kiosk/kiosk.py --ctl power</command></action></keybind>
     <keybind key="C-A-S-r"><action name="Execute"><command>/opt/kiosk/kiosk.py --ctl reconnect</command></action></keybind>
     <keybind key="C-A-S-d"><action name="Execute"><command>/opt/kiosk/kiosk.py --ctl disconnect</command></action></keybind>
+    <keybind key="F12"><action name="Execute"><command>/opt/kiosk/kiosk.py --ctl menu</command></action></keybind>
     <keybind key="C-A-S-space"><action name="Execute"><command>/opt/kiosk/kiosk.py --ctl toggle</command></action></keybind>
   </keyboard>
   <mouse><dragThreshold>8</dragThreshold><doubleClickTime>400</doubleClickTime></mouse>

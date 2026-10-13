@@ -49,6 +49,7 @@
 ## Горячие клавиши (работают и во время сеанса)
 | Клавиши | Действие |
 |---|---|
+| F12 | открыть/скрыть меню настроек |
 | Ctrl+Alt+Shift+S | окно настроек и профилей |
 | Ctrl+Alt+Shift+N | сетевые настройки |
 | Ctrl+Alt+Shift+P | питание и система (язык, раскладка, перезагрузка, выключение) |
@@ -56,6 +57,8 @@
 | Ctrl+Alt+Shift+D | отключиться |
 | Ctrl+Alt+Shift+Пробел | показать/скрыть окно |
 | Esc | вернуться к сеансу |
+
+F12 перехватывается киоском глобально, поэтому внутри удалённого сеанса эта клавиша приложениям не передаётся (используйте другие приложения/сочетания или меню).
 
 Переключение раскладки RU/EN: **CapsLock** (вариант: Win+Пробел). Alt+Shift и Ctrl+Shift не используются: они входят в горячие клавиши киоска.
 
@@ -86,6 +89,7 @@ DHCP и статический IP с сохранением после пере�
 `boot/` (grub.cfg), `test/` (запуск в QEMU, тестовые VNC/RDP-серверы).
 
 ## История изменений
+- **1.3** — добавлена горячая клавиша **F12**: открывает меню настроек, повторное нажатие возвращает к сеансу.
 - **1.2** — исправлено: горячие клавиши не работали (например, в VirtualBox). Раскладка по умолчанию переключалась по Alt+Shift,
   а эти клавиши входят в Ctrl+Alt+Shift. Теперь раскладка переключается по **CapsLock** (или Win+Пробел), выбор — на вкладке «Система».
   Старые настройки с Alt+Shift / Ctrl+Shift автоматически заменяются на CapsLock.
@@ -100,7 +104,7 @@ DHCP и статический IP с сохранением после пере�
 
 ## English summary
 Bootable USB thin client (Ubuntu 24.04, x86_64, BIOS + UEFI/Secure Boot) that connects straight to an RDP or VNC server at
-boot; kiosk mode, settings window via hotkeys (Ctrl+Alt+Shift+S/N/P/R/D/Space), Ethernet/Wi-Fi/static IP, audio, clipboard,
+boot; kiosk mode, settings window via hotkeys (F12 or Ctrl+Alt+Shift+S/N/P/R/D/Space), Ethernet/Wi-Fi/static IP, audio, clipboard,
 USB redirection, multi-monitor, Russian/English UI. Settings are stored on the flash drive (`KIOSKDATA` partition).
 Download `thin-client.img` from the [latest release](https://github.com/Nikolay-Tob/thin-client/releases/latest) and write it with
 Rufus/balenaEtcher (DD mode) or `dd`. Build it yourself with `sudo sh thin-client-build.sh ./out`.

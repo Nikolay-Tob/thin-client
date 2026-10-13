@@ -10,50 +10,116 @@ DEST=${KIT_DIR:-$PWD/thin-client-kit}
 mkdir -p "$DEST"
 echo "== unpacking the kit to $DEST"
 cat > "$DEST/README.md" <<'__KIT_EOF__'
-# Тонкий клиент на флешке (RDP/VNC, киоск)
+# Тонкий клиент на флешке (RDP / VNC, киоск)
 
-Образ на базе Ubuntu 24.04: загружается с USB (BIOS и UEFI, в том числе Secure Boot), сразу подключается
-к профилю «при загрузке». Рабочего стола нет. Настройки открываются горячими клавишами.
+Загрузочная флешка на базе Ubuntu 24.04. После включения компьютера сразу подключается к выбранному серверу
+по **RDP** (Windows) или **VNC**. Рабочего стола и доступа к Linux у пользователя нет: есть только окно настроек,
+которое открывается горячими клавишами.
+
+**Скачать:** [последний релиз](https://github.com/Nikolay-Tob/thin-client/releases/latest)
+(`thin-client.img` — для флешки, `thin-client.vhd` — для виртуальных машин, `SHA256SUMS.txt` — контрольные суммы).
+
+## Возможности
+- Загрузка в режимах **BIOS и UEFI**, в том числе с включённым **Secure Boot**; x86_64.
+- Подключение стартует сразу при загрузке (профиль с отметкой «Подключаться при загрузке»).
+- Профили подключений добавляются в окне настроек (готовых профилей в образе нет). Хранятся на самой флешке.
+- RDP: FreeRDP 3 — звук и микрофон, общий буфер обмена, проброс USB-устройств, несколько мониторов, динамическое разрешение.
+- VNC: TigerVNC — буфер обмена, несколько мониторов, пароль.
+- Сеть: Ethernet (DHCP или статический IP), Wi-Fi (поиск сетей, WPA-PSK, скрытые сети). Настройки сохраняются на флешке.
+- Интерфейс на русском и английском, раскладка клавиатуры English / English + Русская.
+- Корень системы только для чтения (squashfs, изменения живут в оперативной памяти): внезапное выключение систему не портит, пишется только раздел с настройками.
+- Раздел с настройками при первом запуске сам расширяется на всё свободное место флешки.
+
+## Скриншоты
+| | |
+|---|---|
+| ![Первый запуск](docs/screens/01-first-run.png) | ![Профили](docs/screens/02-profiles.png) |
+| **Первый запуск:** профилей нет, окно настроек откроется само. | **Профили подключений:** добавить, копировать, удалить; звёздочка — запуск при загрузке. |
+| ![Сеть](docs/screens/03-network.png) | ![Система](docs/screens/04-system.png) |
+| **Сеть:** статический IP или DHCP, Wi-Fi. Сохранённые значения показываются после перезагрузки. | **Система:** язык, раскладка, горячие клавиши, перезагрузка и выключение. |
+| ![VNC](docs/screens/05-vnc-session.png) | ![RDP](docs/screens/06-rdp-session.png) |
+| **Сеанс VNC** на весь экран (тестовый сервер). | **Сеанс RDP** на весь экран (тестовый сервер). |
+| ![UEFI Secure Boot](docs/screens/07-uefi-secureboot.png) | |
+| **Загрузка в UEFI с включённым Secure Boot.** | |
+
+Скриншоты сделаны в эмуляторе QEMU с тестовыми серверами.
+
+## Запись на флешку
+Образ около 0,9 ГБ, подойдёт любая флешка от 2 ГБ. **Все данные на флешке будут стёрты.**
+- **Windows:** [Rufus](https://rufus.ie) или [balenaEtcher](https://etcher.balena.io). В Rufus выберите «Образ DD» (режим DD).
+- **Linux:** `sudo dd if=thin-client.img of=/dev/sdX bs=4M status=progress conv=fsync` (`/dev/sdX` — флешка, проверьте имя командой `lsblk`).
+
+`thin-client.vhd` — динамический диск (4 ГБ виртуально) для виртуальных машин с BIOS (Hyper-V поколения 1, VirtualBox, QEMU).
+
+## Первый запуск
+1. Загрузитесь с флешки (в меню выбора загрузки, обычно F8/F10/F12/Esc). Secure Boot можно оставить включённым.
+2. Окно настроек откроется само: **«Добавить»**, заполните профиль (протокол, адрес, логин, пароль), отметьте
+   **«Подключаться при загрузке»**, нажмите **«Сохранить»** и **«Подключиться»**.
+3. Сеть: по умолчанию DHCP по кабелю. Статический IP и Wi-Fi — вкладка **«Сеть»**, затем **«Применить»**.
+4. Дальше при каждом включении подключение стартует само.
 
 ## Горячие клавиши (работают и во время сеанса)
 | Клавиши | Действие |
 |---|---|
+| F12 | открыть/скрыть меню настроек |
 | Ctrl+Alt+Shift+S | окно настроек и профилей |
-| Ctrl+Alt+Shift+N | сетевые настройки (Ethernet, Wi-Fi, статический IP) |
-| Ctrl+Alt+Shift+P | питание и система (язык RU/EN, раскладка, перезагрузка, выключение) |
+| Ctrl+Alt+Shift+N | сетевые настройки |
+| Ctrl+Alt+Shift+P | питание и система (язык, раскладка, перезагрузка, выключение) |
 | Ctrl+Alt+Shift+R | переподключиться |
 | Ctrl+Alt+Shift+D | отключиться |
 | Ctrl+Alt+Shift+Пробел | показать/скрыть окно |
 | Esc | вернуться к сеансу |
 
-## Запись на флешку
-Образ ~0,9 ГБ, подойдёт любая флешка от 2 ГБ. Раздел с настройками при первом запуске сам расширяется на всё
-свободное место. Windows: Rufus или balenaEtcher (режим «DD»). Linux: `sudo dd if=thin-client.img of=/dev/sdX bs=4M status=progress conv=fsync`.
-Все данные на флешке будут стёрты.
+F12 перехватывается киоском глобально, поэтому внутри удалённого сеанса эта клавиша приложениям не передаётся (используйте другие приложения/сочетания или меню).
 
-## Первый запуск
-1. Загрузитесь с флешки (в UEFI Secure Boot можно оставить включённым).
-2. Окно настроек откроется само: «Добавить», заполните профиль, отметьте «Подключаться при загрузке», «Сохранить».
-3. Сеть: DHCP по умолчанию; Wi-Fi и статический IP — вкладка «Сеть». Все настройки хранятся на флешке.
+Переключение раскладки RU/EN: **CapsLock** (вариант: Win+Пробел). Alt+Shift и Ctrl+Shift не используются: они входят в горячие клавиши киоска.
 
 ## Меню загрузчика
-Скрыто. Нажмите Esc или Shift при старте: безопасный графический режим (nomodeset) и подробный лог загрузки.
+Скрыто. Нажмите Esc или Shift при старте: обычная загрузка, безопасный графический режим (nomodeset), подробный лог.
+
+## Где хранятся данные и безопасность
+- Профили: `/data/kiosk/config.json` на разделе `KIOSKDATA` флешки (права 600). **Пароли хранятся открытым текстом**
+  и флешка не шифруется: храните её как ключ. Если пароль не сохранён в профиле, при подключении по RDP он спрашивается.
+- Сеть: профили NetworkManager и `/etc/netplan` лежат на том же разделе.
+- По умолчанию сертификат RDP-сервера не проверяется (опция «Не проверять сертификат» в профиле).
+- Всё, что система пишет в процессе работы, живёт в оперативной памяти и пропадает при выключении, кроме раздела данных.
+
+## Что проверено
+Проверено в QEMU: загрузка BIOS, UEFI с Secure Boot, VHD (BIOS); VNC- и RDP-сеансы; горячие клавиши во время сеанса;
+DHCP и статический IP с сохранением после перезагрузки; сохранение профилей; расширение раздела данных.
+**Не проверено на реальном железе:** Wi-Fi, проброс USB, несколько мониторов, звук, запуск VHD в Hyper-V и VirtualBox.
+Если что-то не работает, откройте issue с описанием компьютера (модель, видео, Wi-Fi-адаптер).
 
 ## Сборка самостоятельно
-Нужны Ubuntu 24.04 (подойдёт виртуальная машина или WSL2), root, интернет и ~8 ГБ места. Около 10–15 минут:
-
-Вариант 1, один файл (самораспаковывающийся скрипт `thin-client-build.sh`):
+Нужны Ubuntu 24.04 (подойдёт виртуальная машина или WSL2), root, интернет и ~8 ГБ места, около 10–15 минут.
 
     sudo sh thin-client-build.sh ./out        # -> out/thin-client.img и out/thin-client.vhd
 
-Вариант 2, из архива с набором:
+Или из исходников репозитория: `sudo sh build-all.sh ./out`. Скрипты не используют loop-устройства.
+Состав: `build-rootfs.sh` (Ubuntu 24.04 + ядро HWE + Xorg/openbox + FreeRDP 3 + TigerVNC + NetworkManager, корень в squashfs),
+`build-image.sh` (разметка, BIOS- и UEFI-загрузчики), `overlay/` (приложение `opt/kiosk/kiosk.py`, службы systemd, настройки),
+`boot/` (grub.cfg), `test/` (запуск в QEMU, тестовые VNC/RDP-серверы).
 
-    tar xzf thin-client-kit.tar.gz && cd kit
-    sudo sh build-all.sh ./out
+## История изменений
+- **1.3** — добавлена горячая клавиша **F12**: открывает меню настроек, повторное нажатие возвращает к сеансу.
+- **1.2** — исправлено: горячие клавиши не работали (например, в VirtualBox). Раскладка по умолчанию переключалась по Alt+Shift,
+  а эти клавиши входят в Ctrl+Alt+Shift. Теперь раскладка переключается по **CapsLock** (или Win+Пробел), выбор — на вкладке «Система».
+  Старые настройки с Alt+Shift / Ctrl+Shift автоматически заменяются на CapsLock.
+  Мышь в VNC: программный курсор в X-сервере (на виртуальных видеокартах аппаратный курсор бывает невидим) и точка вместо невидимого
+  курсора сервера (`DotWhenNoCursor`).
+- **1.1** — исправлено: настройки сети (статический IP, Wi-Fi) не сохранялись после перезагрузки. Ubuntu NetworkManager хранит
+  новые подключения в `/etc/netplan`, а он находился в RAM; теперь лежит на разделе с данными. Вкладка «Сеть» показывает сохранённые
+  значения; профиль не привязан к имени сетевой карты (работает и на другом компьютере).
+- **1.0** — первая версия.
 
-Скрипты не используют loop-устройства. Состав: `build-rootfs.sh` (Ubuntu 24.04 + ядро 7.0 HWE + Xorg/openbox + FreeRDP 3 +
-TigerVNC + NetworkManager, корень сжимается в squashfs), `build-image.sh` (разметка, BIOS- и UEFI-загрузчики),
-`overlay/` (приложение `opt/kiosk/kiosk.py`, службы systemd, настройки), `boot/` (grub.cfg), `test/` (запуск в QEMU, тестовые VNC/RDP-серверы).
+---
+
+## English summary
+Bootable USB thin client (Ubuntu 24.04, x86_64, BIOS + UEFI/Secure Boot) that connects straight to an RDP or VNC server at
+boot; kiosk mode, settings window via hotkeys (F12 or Ctrl+Alt+Shift+S/N/P/R/D/Space), Ethernet/Wi-Fi/static IP, audio, clipboard,
+USB redirection, multi-monitor, Russian/English UI. Settings are stored on the flash drive (`KIOSKDATA` partition).
+Download `thin-client.img` from the [latest release](https://github.com/Nikolay-Tob/thin-client/releases/latest) and write it with
+Rufus/balenaEtcher (DD mode) or `dd`. Build it yourself with `sudo sh thin-client-build.sh ./out`.
 __KIT_EOF__
 mkdir -p "$DEST/boot"
 cat > "$DEST/boot/early.cfg" <<'__KIT_EOF__'
@@ -450,7 +516,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib, Gdk  # noqa: E402
 
-VERSION = "1.2"
+VERSION = "1.3"
 
 
 def _wait_data():
@@ -519,6 +585,7 @@ TR = {
         "confirm_reboot": "Перезагрузить компьютер?", "confirm_shutdown": "Выключить компьютер?",
         "hotkeys": "Горячие клавиши",
         "hotkeys_text": (
+            "F12 — открыть/скрыть меню настроек\n"
             "Ctrl+Alt+Shift+S — окно настроек и профилей\n"
             "Ctrl+Alt+Shift+N — сетевые настройки\n"
             "Ctrl+Alt+Shift+P — питание и система\n"
@@ -565,6 +632,7 @@ TR = {
         "confirm_reboot": "Reboot the computer?", "confirm_shutdown": "Shut the computer down?",
         "hotkeys": "Hotkeys",
         "hotkeys_text": (
+            "F12 — open/hide the settings menu\n"
             "Ctrl+Alt+Shift+S — settings and profiles\n"
             "Ctrl+Alt+Shift+N — network settings\n"
             "Ctrl+Alt+Shift+P — power and system\n"
@@ -1008,6 +1076,11 @@ class Kiosk:
             self.disconnect()
         elif cmd == "reconnect":
             self.reconnect()
+        elif cmd == "menu":  # F12: open the settings, or hide them again during a session
+            if self.win.get_visible() and self.running():
+                self.hide_window()
+            else:
+                self.show_window(0)
         elif cmd == "toggle":
             if self.win.get_visible() and self.running():
                 self.hide_window()
@@ -1612,6 +1685,7 @@ cat > "$DEST/overlay/opt/kiosk/rc.xml" <<'__KIT_EOF__'
     <keybind key="C-A-S-p"><action name="Execute"><command>/opt/kiosk/kiosk.py --ctl power</command></action></keybind>
     <keybind key="C-A-S-r"><action name="Execute"><command>/opt/kiosk/kiosk.py --ctl reconnect</command></action></keybind>
     <keybind key="C-A-S-d"><action name="Execute"><command>/opt/kiosk/kiosk.py --ctl disconnect</command></action></keybind>
+    <keybind key="F12"><action name="Execute"><command>/opt/kiosk/kiosk.py --ctl menu</command></action></keybind>
     <keybind key="C-A-S-space"><action name="Execute"><command>/opt/kiosk/kiosk.py --ctl toggle</command></action></keybind>
   </keyboard>
   <mouse><dragThreshold>8</dragThreshold><doubleClickTime>400</doubleClickTime></mouse>
@@ -1815,7 +1889,7 @@ wait
 __KIT_EOF__
 echo "== verifying unpacked files"
 cat > "$DEST/.manifest.sha256" <<'__KIT_EOF__'
-ce7b080b9f4cb872dbb2f349f59a70f19f3cc72b3b5d7d719690ff8fa7c33a72  README.md
+82bbcd09541a11a4f31ef096f5d1c8312914ab552011999f443b765c227e1a56  README.md
 0158a9592d09a6d130fdbdb1abacc08673de0543926cc3815fb172ec9858d648  boot/early.cfg
 753bedb83224707f6df1bc13d8c0f60cf5dcd8688e1195008c37294434eaa143  boot/grub.cfg
 dd028468a5d7a13cf9e7776142400c8c110ded810d2b6f6d703eb6473d61fb31  build-all.sh
@@ -1835,8 +1909,8 @@ b86aaef6227a5824e04d89c3ce772d8479fadd5e6a1e13d908cce627bfd5f7cc  overlay/etc/sy
 41f6a7b7e7d48646734c2c937f4fc1eef56102048a63420d349bb6d2155af230  overlay/etc/systemd/system/kiosk-growdata.service
 9fbf7d8db6455969f2e62cba6087cdf04f5170f6553fa5bf34ea4ad3bcf19769  overlay/etc/systemd/system/kiosk.service
 6a2a46a868a19fdbab9db2c85831059c428cfabc94ad9b461b8a6c4a4f07c6b4  overlay/etc/udev/rules.d/90-kiosk-usb.rules
-0a8b0359b3be127fc2c9e9a8104a8a7228bfc0227907113779e583abc1fcff97  overlay/opt/kiosk/kiosk.py
-a838dc4e90eb75bd01d0732accfa7449b7ecc9f345bf2a57a08d7ea1f7cc4c06  overlay/opt/kiosk/rc.xml
+a68e0e29f5bfafa81c4e67b93bb4584ddabc4becca59cab26e526b2f7e6886b3  overlay/opt/kiosk/kiosk.py
+a903543768178e611125db6cdf98020817466892fb4da56a4b2b6df2f8a4cba3  overlay/opt/kiosk/rc.xml
 ed3602962138a6b2408c77bbb1eda7cc8065f2bbc6a965e4d19727f1d70ddb39  overlay/opt/kiosk/session.sh
 94c0c1bde0f7cb4817684f73d8b01bc193828656ab99fe38ae63f0a125b2bcdb  overlay/usr/local/sbin/kiosk-growdata
 4a7733f237ed0ce1f06686ae02be449c15fcbfabc6c7a7123ea950c76660d837  test/mk-test-image.sh

@@ -31,7 +31,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib, Gdk  # noqa: E402
 
-VERSION = "1.2"
+VERSION = "1.3"
 
 
 def _wait_data():
@@ -100,6 +100,7 @@ TR = {
         "confirm_reboot": "Перезагрузить компьютер?", "confirm_shutdown": "Выключить компьютер?",
         "hotkeys": "Горячие клавиши",
         "hotkeys_text": (
+            "F12 — открыть/скрыть меню настроек\n"
             "Ctrl+Alt+Shift+S — окно настроек и профилей\n"
             "Ctrl+Alt+Shift+N — сетевые настройки\n"
             "Ctrl+Alt+Shift+P — питание и система\n"
@@ -146,6 +147,7 @@ TR = {
         "confirm_reboot": "Reboot the computer?", "confirm_shutdown": "Shut the computer down?",
         "hotkeys": "Hotkeys",
         "hotkeys_text": (
+            "F12 — open/hide the settings menu\n"
             "Ctrl+Alt+Shift+S — settings and profiles\n"
             "Ctrl+Alt+Shift+N — network settings\n"
             "Ctrl+Alt+Shift+P — power and system\n"
@@ -589,6 +591,11 @@ class Kiosk:
             self.disconnect()
         elif cmd == "reconnect":
             self.reconnect()
+        elif cmd == "menu":  # F12: open the settings, or hide them again during a session
+            if self.win.get_visible() and self.running():
+                self.hide_window()
+            else:
+                self.show_window(0)
         elif cmd == "toggle":
             if self.win.get_visible() and self.running():
                 self.hide_window()
