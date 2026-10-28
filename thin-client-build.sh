@@ -26,6 +26,7 @@ cat > "$DEST/README.md" <<'__KIT_EOF__'
 - RDP: FreeRDP 3 — звук и микрофон, общий буфер обмена, проброс USB-устройств, несколько мониторов, динамическое разрешение.
 - VNC: TigerVNC — буфер обмена, несколько мониторов, пароль.
 - Сеть: Ethernet (DHCP или статический IP), Wi-Fi (поиск сетей, WPA-PSK, скрытые сети). Настройки сохраняются на флешке.
+- **Установка на ПК:** пункт «Установка на ПК» в меню загрузчика переносит систему на внутренний диск компьютера (BIOS и UEFI), дальше флешка не нужна.
 - Интерфейс на русском и английском, раскладка клавиатуры English / English + Русская.
 - Корень системы только для чтения (squashfs, изменения живут в оперативной памяти): внезапное выключение систему не портит, пишется только раздел с настройками.
 - Раздел с настройками при первом запуске сам расширяется на всё свободное место флешки.
@@ -39,8 +40,14 @@ cat > "$DEST/README.md" <<'__KIT_EOF__'
 | **Сеть:** статический IP или DHCP, Wi-Fi. Сохранённые значения показываются после перезагрузки. | **Система:** язык, раскладка, горячие клавиши, перезагрузка и выключение. |
 | ![VNC](docs/screens/05-vnc-session.png) | ![RDP](docs/screens/06-rdp-session.png) |
 | **Сеанс VNC** на весь экран (тестовый сервер). | **Сеанс RDP** на весь экран (тестовый сервер). |
-| ![UEFI Secure Boot](docs/screens/07-uefi-secureboot.png) | |
-| **Загрузка в UEFI с включённым Secure Boot.** | |
+| ![UEFI Secure Boot](docs/screens/07-uefi-secureboot.png) | ![Меню загрузчика BIOS](docs/screens/08-boot-menu-bios.png) |
+| **Загрузка в UEFI с включённым Secure Boot.** | **Меню загрузчика (BIOS):** пункт «Установка на ПК». |
+| ![Меню загрузчика UEFI](docs/screens/09-boot-menu-uefi.png) | ![Выбор диска](docs/screens/10-install-select.png) |
+| **Меню загрузчика (UEFI + Secure Boot):** там пункт называется «Install to PC» (GRUB не загружает шрифт с кириллицей при Secure Boot). | **Установка:** выбор диска, перенос настроек с флешки. |
+| ![Подтверждение](docs/screens/11-install-confirm.png) | ![Прогресс](docs/screens/12-install-progress.png) |
+| **Подтверждение:** диск будет стёрт. | **Копирование и проверка** загрузочного раздела и системы. |
+| ![Готово](docs/screens/13-install-done.png) | |
+| **Готово:** извлеките флешку и перезагрузите компьютер. | |
 
 Скриншоты сделаны в эмуляторе QEMU с тестовыми серверами.
 
@@ -50,6 +57,17 @@ cat > "$DEST/README.md" <<'__KIT_EOF__'
 - **Linux:** `sudo dd if=thin-client.img of=/dev/sdX bs=4M status=progress conv=fsync` (`/dev/sdX` — флешка, проверьте имя командой `lsblk`).
 
 `thin-client.vhd` — динамический диск (4 ГБ виртуально) для виртуальных машин с BIOS (Hyper-V поколения 1, VirtualBox, QEMU).
+
+## Установка на внутренний диск компьютера
+1. Загрузитесь с флешки и в первую секунду загрузки нажмите **Esc** (или удерживайте **Shift**): откроется меню загрузчика.
+2. Выберите **«Установка на ПК»** (в UEFI с Secure Boot — «Install to PC») и нажмите Enter.
+3. В окне установщика выберите диск, при желании оставьте галочку «Перенести профили и сетевые настройки с этой флешки», нажмите «Установить» и подтвердите.
+4. После сообщения «Установка завершена» извлеките флешку и нажмите «Перезагрузить».
+
+**Выбранный диск будет полностью стёрт** (включая Windows и другие системы). Установка копирует загрузочный раздел и систему с флешки
+и проверяет копию; раздел с настройками занимает всё остальное место диска. На установленной системе пункта установки в меню нет.
+Диск получается с таблицей разделов MBR (как у флешки), поэтому для данных используется не более 2 ТБ. UEFI-запись «Thin client» создаётся
+автоматически, на других компьютерах загрузка идёт по пути `\EFI\BOOT\BOOTX64.EFI`.
 
 ## Первый запуск
 1. Загрузитесь с флешки (в меню выбора загрузки, обычно F8/F10/F12/Esc). Secure Boot можно оставить включённым.
@@ -75,7 +93,7 @@ F12 перехватывается киоском глобально, поэто
 Переключение раскладки RU/EN: **CapsLock** (вариант: Win+Пробел). Alt+Shift и Ctrl+Shift не используются: они входят в горячие клавиши киоска.
 
 ## Меню загрузчика
-Скрыто. Нажмите Esc или Shift при старте: обычная загрузка, безопасный графический режим (nomodeset), подробный лог.
+Скрыто. Нажмите Esc или Shift при старте: обычная загрузка, установка на ПК, безопасный графический режим (nomodeset), подробный лог.
 
 ## Где хранятся данные и безопасность
 - Профили: `/data/kiosk/config.json` на разделе `KIOSKDATA` флешки (права 600). **Пароли хранятся открытым текстом**
@@ -87,7 +105,8 @@ F12 перехватывается киоском глобально, поэто
 ## Что проверено
 Проверено в QEMU: загрузка BIOS, UEFI с Secure Boot, VHD (BIOS); VNC- и RDP-сеансы; горячие клавиши во время сеанса;
 DHCP и статический IP с сохранением после перезагрузки; сохранение профилей; расширение раздела данных.
-**Не проверено на реальном железе:** Wi-Fi, проброс USB, несколько мониторов, звук, запуск VHD в Hyper-V и VirtualBox.
+Установка на диск: BIOS и UEFI с Secure Boot, загрузка установленной системы (в том числе при оставленной флешке), перенос настроек.
+**Не проверено на реальном железе:** установка на реальные диски (SATA/NVMe), Wi-Fi, проброс USB, несколько мониторов, звук, запуск VHD в Hyper-V и VirtualBox.
 Если что-то не работает, откройте issue с описанием компьютера (модель, видео, Wi-Fi-адаптер).
 
 ## Сборка самостоятельно
@@ -101,6 +120,8 @@ DHCP и статический IP с сохранением после пере�
 `boot/` (grub.cfg), `test/` (запуск в QEMU, тестовые VNC/RDP-серверы).
 
 ## История изменений
+- **1.4** — пункт «Установка на ПК» в меню загрузчика: установка системы на внутренний диск (BIOS и UEFI, с переносом настроек и проверкой копии).
+  Меню загрузчика стало графическим (с кириллицей в BIOS); если рядом стоят флешка и установленный диск с одинаковыми метками, система берёт свой раздел данных.
 - **1.3** — добавлена горячая клавиша **F12**: открывает меню настроек, повторное нажатие возвращает к сеансу.
 - **1.2** — исправлено: горячие клавиши не работали (например, в VirtualBox). Раскладка по умолчанию переключалась по Alt+Shift,
   а эти клавиши входят в Ctrl+Alt+Shift. Теперь раскладка переключается по **CapsLock** (или Win+Пробел), выбор — на вкладке «Система».
@@ -116,14 +137,16 @@ DHCP и статический IP с сохранением после пере�
 
 ## English summary
 Bootable USB thin client (Ubuntu 24.04, x86_64, BIOS + UEFI/Secure Boot) that connects straight to an RDP or VNC server at
-boot; kiosk mode, settings window via hotkeys (F12 or Ctrl+Alt+Shift+S/N/P/R/D/Space), Ethernet/Wi-Fi/static IP, audio, clipboard,
+boot; kiosk mode, settings window via hotkeys (F12 or Ctrl+Alt+Shift+S/N/P/R/D/Space), "Install to PC" entry in the boot menu (Esc at start) copies the system to an internal disk, Ethernet/Wi-Fi/static IP, audio, clipboard,
 USB redirection, multi-monitor, Russian/English UI. Settings are stored on the flash drive (`KIOSKDATA` partition).
 Download `thin-client.img` from the [latest release](https://github.com/Nikolay-Tob/thin-client/releases/latest) and write it with
 Rufus/balenaEtcher (DD mode) or `dd`. Build it yourself with `sudo sh thin-client-build.sh ./out`.
 __KIT_EOF__
 mkdir -p "$DEST/boot"
 cat > "$DEST/boot/early.cfg" <<'__KIT_EOF__'
-search --no-floppy --label --set=root KIOSKBOOT
+if ! [ -f ($root)/boot/grub/grub.cfg ]; then
+    search --no-floppy --label --set=root KIOSKBOOT
+fi
 set prefix=($root)/boot/grub
 configfile $prefix/grub.cfg
 __KIT_EOF__
@@ -133,12 +156,37 @@ cat > "$DEST/boot/grub.cfg" <<'__KIT_EOF__'
 set timeout_style=hidden
 set timeout=1
 set default=0
-search --no-floppy --label --set=root KIOSKBOOT
+# Use the disk we were started from; search by label only if the kernel is not here
+# (so a flash drive left plugged in next to an installed disk does not confuse the loader).
+if ! [ -f ($root)/boot/vmlinuz ]; then
+    search --no-floppy --label --set=root KIOSKBOOT
+fi
+
+# Graphical menu with a Unicode font (Cyrillic titles). Under UEFI Secure Boot GRUB refuses to load a font
+# file ("prohibited by secure boot policy"): then the menu stays in plain text mode with an ASCII title.
+set cyr=0
+if loadfont ($root)/boot/grub/unicode.pf2; then
+    set cyr=1
+    set gfxmode=auto
+    set gfxpayload=keep
+    insmod all_video
+    insmod gfxterm
+    if terminal_output gfxterm; then true; else terminal_output console; fi
+fi
+set menu_color_normal=white/black
+set menu_color_highlight=black/light-gray
 
 menuentry "Thin client" {
     linux /boot/vmlinuz root=PARTUUID=4b50d0c1-02 rootfstype=squashfs rw rootwait overlayroot=tmpfs:recurse=0 quiet loglevel=3 vt.global_cursor_default=0 systemd.show_status=0 usbcore.autosuspend=-1 fsck.mode=skip
     initrd /boot/initrd.img
 }
+#INSTALL-BEGIN
+if [ "$cyr" = 1 ]; then set install_title="Установка на ПК (Install to PC)"; else set install_title="Install to PC"; fi
+menuentry "$install_title" {
+    linux /boot/vmlinuz root=PARTUUID=4b50d0c1-02 rootfstype=squashfs rw rootwait overlayroot=tmpfs:recurse=0 kiosk.install=1 quiet loglevel=3 vt.global_cursor_default=0 systemd.show_status=0 usbcore.autosuspend=-1 fsck.mode=skip
+    initrd /boot/initrd.img
+}
+#INSTALL-END
 menuentry "Thin client (safe graphics, nomodeset)" {
     linux /boot/vmlinuz root=PARTUUID=4b50d0c1-02 rootfstype=squashfs rw rootwait overlayroot=tmpfs:recurse=0 quiet loglevel=3 nomodeset vt.global_cursor_default=0 systemd.show_status=0 usbcore.autosuspend=-1 fsck.mode=skip
     initrd /boot/initrd.img
@@ -193,11 +241,12 @@ echo "root=${ROOT_MIB}MiB total=${TOTAL_MIB}MiB"
 # --- ESP: signed shim + GRUB (UEFI / Secure Boot), grub.cfg, kernel, initrd
 truncate -s ${ESP_MIB}M esp.img
 mkfs.vfat -F 32 -n KIOSKBOOT esp.img >/dev/null
-mmd -i esp.img ::/EFI ::/EFI/BOOT ::/EFI/ubuntu ::/boot ::/boot/grub
+mmd -i esp.img ::/EFI ::/EFI/BOOT ::/EFI/ubuntu ::/boot ::/boot/grub ::/boot/grub/fonts
 mcopy -i esp.img /usr/lib/shim/shimx64.efi.signed ::/EFI/BOOT/BOOTX64.EFI
 mcopy -i esp.img /usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed ::/EFI/BOOT/grubx64.efi
 mcopy -i esp.img /usr/lib/shim/mmx64.efi ::/EFI/BOOT/mmx64.efi
 for d in boot/grub EFI/BOOT EFI/ubuntu; do mcopy -i esp.img "$KIT/boot/grub.cfg" ::/$d/grub.cfg; done
+mcopy -i esp.img /usr/share/grub/unicode.pf2 ::/boot/grub/unicode.pf2
 mcopy -i esp.img "$OUT/bootfiles/vmlinuz" ::/boot/vmlinuz
 mcopy -i esp.img "$OUT/bootfiles/initrd.img" ::/boot/initrd.img
 
@@ -223,7 +272,8 @@ dd if=data.img of=disk.img bs=1M seek=$((1+ESP_MIB+ROOT_MIB)) conv=notrunc statu
 
 # --- BIOS GRUB: core.img written straight into the gap after the MBR (no loop devices needed)
 grub-mkimage -d /usr/lib/grub/i386-pc -O i386-pc -o core.img -c "$KIT/boot/early.cfg" -p '(hd0,msdos1)/boot/grub' \
-  biosdisk part_msdos part_gpt fat ext2 normal configfile linux search search_label search_fs_uuid echo test ls cat boot gzio minicmd
+  biosdisk part_msdos part_gpt fat ext2 normal configfile linux search search_label search_fs_uuid echo test ls cat boot gzio minicmd \
+  font gfxterm all_video video video_fb loadenv terminal
 python3 - "$W/disk.img" "$W/core.img" <<'PY'
 import struct, sys
 disk, corep = sys.argv[1:3]
@@ -308,7 +358,7 @@ if ! stage s3-configure; then
     log configure
     mounts
     cp -a "$KIT/overlay/." $R/
-    chmod 755 $R/opt/kiosk/kiosk.py $R/opt/kiosk/session.sh $R/usr/local/sbin/kiosk-growdata
+    chmod 755 $R/opt/kiosk/kiosk.py $R/opt/kiosk/installer.py $R/opt/kiosk/session.sh $R/usr/local/sbin/kiosk-growdata $R/usr/local/sbin/kiosk-install
     for g in audio video plugdev input render; do chroot $R getent group $g >/dev/null || chroot $R groupadd -r $g; done
     chroot $R id kiosk >/dev/null 2>&1 || chroot $R useradd -m -u 1000 -s /bin/bash -G audio,video,plugdev,input,render kiosk
     chroot $R systemctl enable kiosk.service kiosk-growdata.service NetworkManager.service
@@ -347,9 +397,25 @@ if ! stage s4-prune; then
     done_stage s4-prune
 fi
 
+# installer needs efibootmgr (UEFI boot entry); added as a separate stage so existing rootfs caches stay usable
+if ! stage s5-installer; then
+    log installer-packages
+    mounts
+    rm -f $R/etc/resolv.conf; cp /etc/resolv.conf $R/etc/resolv.conf
+    printf '#!/bin/sh\nexit 101\n' > $R/usr/sbin/policy-rc.d; chmod +x $R/usr/sbin/policy-rc.d
+    chroot $R apt-get update -qq
+    # apt refuses to install while the pruned Mesa/LLVM packages are 'broken': fetch the .debs and use dpkg
+    chroot $R sh -c 'cd /tmp && apt-get download efibootmgr libefiboot1t64 libefivar1t64 libpopt0 && dpkg -i --force-depends /tmp/*.deb && rm -f /tmp/*.deb'
+    chroot $R apt-get clean
+    rm -rf $R/var/lib/apt/lists/* $R/var/cache/apt/* $R/usr/share/man $R/usr/share/doc/efibootmgr 2>/dev/null || true
+    rm -f $R/usr/sbin/policy-rc.d $R/etc/resolv.conf
+    ln -s ../run/NetworkManager/resolv.conf $R/etc/resolv.conf
+    done_stage s5-installer
+fi
+
 # always refresh our own files (cheap, idempotent) so edits to overlay/ end up in the image
 cp -a "$KIT/overlay/." $R/
-chmod 755 $R/opt/kiosk/kiosk.py $R/opt/kiosk/session.sh $R/usr/local/sbin/kiosk-growdata
+chmod 755 $R/opt/kiosk/kiosk.py $R/opt/kiosk/installer.py $R/opt/kiosk/session.sh $R/usr/local/sbin/kiosk-growdata $R/usr/local/sbin/kiosk-install
 umounts
 log squashfs
 rm -f "$OUT/root.sqsh"
@@ -397,6 +463,17 @@ __KIT_EOF__
 mkdir -p "$DEST/overlay/etc"
 cat > "$DEST/overlay/etc/hostname" <<'__KIT_EOF__'
 kiosk
+__KIT_EOF__
+mkdir -p "$DEST/overlay/etc/polkit-1/rules.d"
+cat > "$DEST/overlay/etc/polkit-1/rules.d/50-kiosk-install.rules" <<'__KIT_EOF__'
+// The installer GUI (user kiosk, only in the "Install to PC" boot mode) starts kiosk-install@<disk>.service.
+polkit.addRule(function(action, subject) {
+    if (subject.user == "kiosk" &&
+        action.id.indexOf("org.freedesktop.systemd1.manage-units") == 0 &&
+        action.lookup("unit") && action.lookup("unit").indexOf("kiosk-install@") == 0) {
+        return polkit.Result.YES;
+    }
+});
 __KIT_EOF__
 mkdir -p "$DEST/overlay/etc/polkit-1/rules.d"
 cat > "$DEST/overlay/etc/polkit-1/rules.d/50-kiosk.rules" <<'__KIT_EOF__'
@@ -450,6 +527,19 @@ TimeoutStartSec=300
 WantedBy=multi-user.target
 __KIT_EOF__
 mkdir -p "$DEST/overlay/etc/systemd/system"
+cat > "$DEST/overlay/etc/systemd/system/kiosk-install@.service" <<'__KIT_EOF__'
+[Unit]
+Description=Install the thin client onto an internal disk (%i)
+ConditionKernelCommandLine=kiosk.install=1
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/kiosk-install unit %i
+StandardOutput=truncate:/run/kiosk-install.log
+StandardError=inherit
+TimeoutStartSec=infinity
+__KIT_EOF__
+mkdir -p "$DEST/overlay/etc/systemd/system"
 cat > "$DEST/overlay/etc/systemd/system/kiosk.service" <<'__KIT_EOF__'
 [Unit]
 Description=Thin client kiosk session (Xorg + launcher)
@@ -480,6 +570,295 @@ mkdir -p "$DEST/overlay/etc/udev/rules.d"
 cat > "$DEST/overlay/etc/udev/rules.d/90-kiosk-usb.rules" <<'__KIT_EOF__'
 # allow the kiosk user to redirect any USB device into the remote session
 SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", MODE="0666"
+__KIT_EOF__
+mkdir -p "$DEST/overlay/opt/kiosk"
+cat > "$DEST/overlay/opt/kiosk/installer.py" <<'__KIT_EOF__'
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""Installer GUI ("Install to PC" boot menu entry): copies this system to an internal disk of the computer.
+
+Runs in the same bare X session as the kiosk (session.sh starts it instead of kiosk.py when the kernel command
+line has kiosk.install=1). The actual work is done by kiosk-install@<disk>.service (root); this window only
+lists the disks, asks for confirmation and shows the progress.
+"""
+import json
+import os
+import subprocess
+
+import gi
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk, GLib, Gdk  # noqa: E402
+
+TOOL = "/usr/local/sbin/kiosk-install"
+LOG = "/run/kiosk-install.log"
+
+TR = {
+    "ru": {
+        "title": "Установка на ПК",
+        "intro": "Система будет установлена на внутренний диск этого компьютера, после чего она будет загружаться "
+                 "с него без флешки. Выберите диск:",
+        "warn": "ВНИМАНИЕ: все данные на выбранном диске будут безвозвратно удалены!",
+        "nodisk": "Подходящие диски не найдены (нужен диск не меньше {0}, кроме самой флешки).",
+        "keepcfg": "Перенести профили и сетевые настройки с этой флешки",
+        "install": "Установить", "cancel": "Отмена (перезагрузка)", "refresh": "Обновить список",
+        "confirm": "Стереть диск {0} ({1}) и установить систему?\n\nВсе данные на нём будут удалены.",
+        "erase": "Стереть и установить",
+        "back": "Назад",
+        "working": "Идёт установка. Не выключайте компьютер и не вынимайте флешку.",
+        "done": "Установка завершена.\n\nИзвлеките флешку и нажмите «Перезагрузить». Компьютер загрузится с установленной системы.",
+        "reboot": "Перезагрузить", "shutdown": "Выключить",
+        "error": "Ошибка установки:\n{0}",
+        "removable": "съёмный", "unknown": "диск",
+    },
+    "en": {
+        "title": "Install to PC",
+        "intro": "The system will be installed on an internal disk of this computer and will then boot from it "
+                 "without the flash drive. Choose the disk:",
+        "warn": "WARNING: all data on the selected disk will be permanently erased!",
+        "nodisk": "No suitable disk found (a disk of at least {0} other than this flash drive is required).",
+        "keepcfg": "Copy profiles and network settings from this flash drive",
+        "install": "Install", "cancel": "Cancel (reboot)", "refresh": "Refresh the list",
+        "confirm": "Erase disk {0} ({1}) and install the system?\n\nAll data on it will be deleted.",
+        "erase": "Erase and install",
+        "back": "Back",
+        "working": "Installing. Do not power off the computer and do not remove the flash drive.",
+        "done": "Installation finished.\n\nRemove the flash drive and press “Reboot”. The computer will boot from the installed system.",
+        "reboot": "Reboot", "shutdown": "Shut down",
+        "error": "Installation failed:\n{0}",
+        "removable": "removable", "unknown": "disk",
+    },
+}
+
+
+def human(n):
+    for unit, div in (("ТБ", 1 << 40), ("ГБ", 1 << 30), ("МБ", 1 << 20)):
+        if n >= div:
+            return "%.1f %s" % (n / div, unit)
+    return "%d B" % n
+
+
+def human_en(n):
+    return human(n).replace("ТБ", "TB").replace("ГБ", "GB").replace("МБ", "MB")
+
+
+def load_lang():
+    for p in ("/data/kiosk/config.json",):
+        try:
+            with open(p, encoding="utf-8") as f:
+                return json.load(f).get("lang", "ru")
+        except Exception:  # noqa: BLE001
+            pass
+    return "ru"
+
+
+class Installer:
+    def __init__(self):
+        self.lang = load_lang()
+        if self.lang not in TR:
+            self.lang = "ru"
+        self.disks = []
+        self.need = 0
+        self.sel = None
+        self.timer = None
+
+        Gtk.Settings.get_default().set_property("gtk-application-prefer-dark-theme", True)
+        css = Gtk.CssProvider()
+        css.load_from_data(b"""
+            * { font-size: 13pt; }
+            .title { font-size: 24pt; font-weight: bold; }
+            .warn { color: #c0392b; font-weight: bold; }
+            .ok { color: #1e7e34; font-weight: bold; }
+            button { padding: 8px 20px; }
+            .disk { padding: 10px; }
+        """)
+        Gtk.StyleContext.add_provider_for_screen(Gdk.Screen.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        self.win = Gtk.Window()
+        self.win.set_decorated(False)
+        self.win.connect("delete-event", lambda *a: True)
+        self.win.fullscreen()
+        self.show_select()
+        self.win.show_all()
+
+    def _(self, key, *a):
+        s = TR[self.lang][key]
+        return s.format(*a) if a else s
+
+    def size(self, n):
+        return human(n) if self.lang == "ru" else human_en(n)
+
+    def set_page(self, widget):
+        old = self.win.get_child()
+        if old:
+            self.win.remove(old)
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        widget.set_halign(Gtk.Align.CENTER)
+        widget.set_valign(Gtk.Align.CENTER)
+        widget.set_size_request(820, -1)
+        widget.set_margin_start(30)
+        widget.set_margin_end(30)
+        outer.pack_start(widget, True, True, 0)
+        self.win.add(outer)
+        self.win.show_all()
+
+    def label(self, text, cls=None, wrap=True):
+        lb = Gtk.Label(label=text)
+        lb.set_line_wrap(wrap)
+        lb.set_xalign(0)
+        lb.set_max_width_chars(70)
+        if cls:
+            lb.get_style_context().add_class(cls)
+        return lb
+
+    # ------------------------------------------------------------ select disk
+    def load_disks(self):
+        try:
+            r = subprocess.run([TOOL, "list"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=30)
+            j = json.loads(r.stdout)
+            self.disks, self.need = j["disks"], j["need"]
+        except Exception:  # noqa: BLE001
+            self.disks, self.need = [], 0
+
+    def show_select(self):
+        self.load_disks()
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        box.pack_start(self.label(self._("title"), "title"), False, False, 0)
+        box.pack_start(self.label(self._("intro")), False, False, 0)
+        self.radios = []
+        first = None
+        if not self.disks:
+            box.pack_start(self.label(self._("nodisk", self.size(self.need or (2 << 30))), "warn"), False, False, 8)
+        for d in self.disks:
+            tran = d["tran"].upper() or self._("unknown")
+            if d["removable"]:
+                tran += ", " + self._("removable")
+            txt = "%s    %s    %s    [%s]" % (d["name"], self.size(d["size"]), d["model"] or "", tran)
+            rb = Gtk.RadioButton.new_with_label_from_widget(first, txt)
+            rb.get_style_context().add_class("disk")
+            if first is None:
+                first = rb
+            rb.connect("toggled", lambda w, dd=d: w.get_active() and setattr(self, "sel", dd))
+            self.radios.append((rb, d))
+            box.pack_start(rb, False, False, 0)
+        if self.disks:
+            self.sel = self.disks[0]
+        self.keep = Gtk.CheckButton(label=self._("keepcfg"))
+        self.keep.set_active(True)
+        if self.disks:
+            box.pack_start(self.keep, False, False, 6)
+        box.pack_start(self.label(self._("warn"), "warn"), False, False, 4)
+        row = Gtk.Box(spacing=10)
+        b_inst = Gtk.Button(label=self._("install"))
+        b_inst.set_sensitive(bool(self.disks))
+        b_inst.connect("clicked", self.on_install)
+        b_ref = Gtk.Button(label=self._("refresh"))
+        b_ref.connect("clicked", lambda *a: self.show_select())
+        b_can = Gtk.Button(label=self._("cancel"))
+        b_can.connect("clicked", lambda *a: self.power("reboot"))
+        row.pack_start(b_inst, False, False, 0)
+        row.pack_start(b_ref, False, False, 0)
+        row.pack_end(b_can, False, False, 0)
+        box.pack_start(row, False, False, 10)
+        self.set_page(box)
+        if self.disks:
+            b_inst.grab_focus()
+
+    # ---------------------------------------------------------------- confirm
+    def on_install(self, *a):
+        d = self.sel
+        if not d:
+            return
+        dlg = Gtk.MessageDialog(transient_for=self.win, modal=True, message_type=Gtk.MessageType.WARNING,
+                                text=self._("confirm", d["name"], self.size(d["size"])))
+        dlg.add_button(self._("back"), Gtk.ResponseType.CANCEL)
+        dlg.add_button(self._("erase"), Gtk.ResponseType.OK)
+        dlg.set_default_response(Gtk.ResponseType.CANCEL)
+        resp = dlg.run()
+        dlg.destroy()
+        if resp == Gtk.ResponseType.OK:
+            self.start(d)
+
+    # --------------------------------------------------------------- progress
+    def start(self, d):
+        unit = "kiosk-install@%s%s.service" % (os.path.basename(d["name"]), "" if self.keep.get_active() else "_nocfg")
+        try:
+            os.remove(LOG)
+        except OSError:
+            pass
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        box.pack_start(self.label(self._("title"), "title"), False, False, 0)
+        box.pack_start(self.label(self._("working")), False, False, 0)
+        self.bar = Gtk.ProgressBar()
+        self.bar.set_show_text(True)
+        self.bar.set_text("0 %")
+        box.pack_start(self.bar, False, False, 6)
+        self.status = self.label("")
+        box.pack_start(self.status, False, False, 0)
+        self.set_page(box)
+        r = subprocess.run(["systemctl", "start", "--no-block", unit], stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, text=True)
+        if r.returncode != 0:
+            self.show_result(False, r.stdout.strip())
+            return
+        self.unit = unit
+        self.timer = GLib.timeout_add(500, self.poll)
+
+    def poll(self):
+        try:
+            with open(LOG, encoding="utf-8", errors="replace") as f:
+                lines = f.read().splitlines()
+        except OSError:
+            lines = []
+        for ln in lines:
+            if ln.startswith("PROGRESS "):
+                _, pct, msg = (ln.split(" ", 2) + [""])[:3]
+                try:
+                    self.bar.set_fraction(int(pct) / 100.0)
+                    self.bar.set_text("%s %%" % pct)
+                    self.status.set_text(msg)
+                except ValueError:
+                    pass
+        if any(ln == "DONE" for ln in lines):
+            self.timer = None
+            self.show_result(True, "")
+            return False
+        err = [ln for ln in lines if ln.startswith("ERROR ")]
+        if err:
+            self.timer = None
+            self.show_result(False, err[-1][6:])
+            return False
+        st = subprocess.run(["systemctl", "is-active", self.unit], stdout=subprocess.PIPE, text=True).stdout.strip()
+        if st == "failed":
+            self.timer = None
+            self.show_result(False, "service failed")
+            return False
+        return True
+
+    def show_result(self, ok, msg):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        box.pack_start(self.label(self._("title"), "title"), False, False, 0)
+        box.pack_start(self.label(self._("done") if ok else self._("error", msg), "ok" if ok else "warn"), False, False, 8)
+        row = Gtk.Box(spacing=10)
+        b1 = Gtk.Button(label=self._("reboot"))
+        b1.connect("clicked", lambda *a: self.power("reboot"))
+        b2 = Gtk.Button(label=self._("shutdown"))
+        b2.connect("clicked", lambda *a: self.power("poweroff"))
+        row.pack_start(b1, False, False, 0)
+        row.pack_start(b2, False, False, 0)
+        if not ok:
+            b3 = Gtk.Button(label=self._("back"))
+            b3.connect("clicked", lambda *a: self.show_select())
+            row.pack_end(b3, False, False, 0)
+        box.pack_start(row, False, False, 10)
+        self.set_page(box)
+        b1.grab_focus()
+
+    def power(self, what):
+        subprocess.Popen(["systemctl", what])
+
+
+if __name__ == "__main__":
+    Installer()
+    Gtk.main()
 __KIT_EOF__
 mkdir -p "$DEST/overlay/opt/kiosk"
 cat > "$DEST/overlay/opt/kiosk/kiosk.py" <<'__KIT_EOF__'
@@ -516,7 +895,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib, Gdk  # noqa: E402
 
-VERSION = "1.3"
+VERSION = "1.4"
 
 
 def _wait_data():
@@ -1705,6 +2084,8 @@ xsetroot -solid '#20232a' -cursor_name left_ptr 2>/dev/null
 pulseaudio --start --exit-idle-time=-1 --log-target=syslog 2>/dev/null
 ( sleep 3; pactl set-sink-mute @DEFAULT_SINK@ 0; pactl set-sink-volume @DEFAULT_SINK@ 85% ) >/dev/null 2>&1 &
 openbox --config-file /opt/kiosk/rc.xml >/dev/null 2>&1 &
+# "Install to PC" boot menu entry: show the installer instead of the kiosk
+if grep -qw kiosk.install=1 /proc/cmdline; then exec /opt/kiosk/installer.py; fi
 exec /opt/kiosk/kiosk.py
 __KIT_EOF__
 mkdir -p "$DEST/overlay/usr/local/sbin"
@@ -1712,7 +2093,17 @@ cat > "$DEST/overlay/usr/local/sbin/kiosk-growdata" <<'__KIT_EOF__'
 #!/bin/sh
 # Prepare persistent storage: grow the last (data) partition to fill the device,
 # check/grow its filesystem, mount it on /data and bind NetworkManager profiles from it.
-DEV=$(blkid -L KIOSKDATA 2>/dev/null)
+# Several KIOSKDATA partitions can be present (flash drive left plugged in after installing to the PC):
+# use the one on the same disk as the running system.
+ROOTSRC=$(findmnt -rn -o SOURCE /media/root-ro 2>/dev/null)
+ROOTDISK=
+[ -b "$ROOTSRC" ] && ROOTDISK=$(basename "$(readlink -f "/sys/class/block/$(basename "$ROOTSRC")/..")")
+DEV=
+for c in $(blkid -t LABEL=KIOSKDATA -o device 2>/dev/null); do
+    [ -z "$DEV" ] && DEV=$c
+    if [ -n "$ROOTDISK" ] && [ "$(basename "$(readlink -f "/sys/class/block/$(basename "$c")/..")")" = "$ROOTDISK" ]; then DEV=$c; break; fi
+done
+INSTALL=0; grep -qw kiosk.install=1 /proc/cmdline && INSTALL=1   # installer mode: leave the flash drive as it is
 if [ -b "$DEV" ]; then
     SYS=/sys/class/block/$(basename "$DEV")
     PART=$(cat "$SYS/partition" 2>/dev/null)
@@ -1720,7 +2111,7 @@ if [ -b "$DEV" ]; then
     DISK_SECT=$(blockdev --getsz "$DISK" 2>/dev/null)
     START=$(cat "$SYS/start" 2>/dev/null); SIZE=$(cat "$SYS/size" 2>/dev/null)
     GREW=0
-    if [ -n "$PART" ] && [ -n "$DISK_SECT" ] && [ $((DISK_SECT - START - SIZE)) -gt 8192 ]; then
+    if [ $INSTALL = 0 ] && [ -n "$PART" ] && [ -n "$DISK_SECT" ] && [ $((DISK_SECT - START - SIZE)) -gt 8192 ]; then
         echo ", +" | sfdisk --no-reread -N "$PART" "$DISK" >/dev/null 2>&1
         partx -u "$DISK" >/dev/null 2>&1 || partprobe "$DISK" >/dev/null 2>&1
         udevadm settle --timeout=15 >/dev/null 2>&1
@@ -1749,6 +2140,292 @@ if [ -b "$DEV" ]; then
     fi
 fi
 exit 0
+__KIT_EOF__
+mkdir -p "$DEST/overlay/usr/local/sbin"
+cat > "$DEST/overlay/usr/local/sbin/kiosk-install" <<'__KIT_EOF__'
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+"""Install the thin client from the boot flash drive onto an internal disk of the PC.
+
+  kiosk-install list            -> JSON list of disks the system can be installed on (no root needed)
+  kiosk-install run DISK [nocfg] -> install (root; the GUI starts kiosk-install@DISK[_nocfg].service)
+
+The installer only works when the system was booted from the "Install to PC" menu entry (kiosk.install=1).
+Layout of the target disk is the same as on the flash drive (MBR: ESP FAT32, squashfs root, ext4 data),
+the ESP and root are copied byte for byte and verified, the data partition fills the rest of the disk.
+Progress is printed as lines: "PROGRESS <percent> <message>", then "DONE" or "ERROR <message>".
+"""
+import hashlib
+import json
+import os
+import random
+import re
+import subprocess
+import sys
+import time
+
+MIB = 1 << 20
+MIN_DATA = 256 * MIB
+MBR_MAX = (1 << 32) - 1            # sectors addressable by an MBR partition table
+OLD_ID = "4b50d0c1"                # disk id the flash image is built with (referenced by grub.cfg)
+
+
+def sh(cmd, check=True, timeout=300):
+    r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=timeout)
+    if check and r.returncode != 0:
+        raise RuntimeError("%s: %s" % (" ".join(cmd), r.stdout.strip()[-300:]))
+    return r.stdout
+
+
+def out(line):
+    print(line, flush=True)
+
+
+def progress(pct, msg):
+    out("PROGRESS %d %s" % (pct, msg))
+
+
+def part_path(disk, n):
+    return "%s%s%d" % (disk, "p" if disk[-1].isdigit() else "", n)
+
+
+def parent_disk(dev):
+    """/dev/sda2 -> /dev/sda"""
+    name = os.path.basename(os.path.realpath(dev))
+    link = os.path.realpath("/sys/class/block/%s/.." % name)
+    if os.path.exists("/sys/class/block/%s/partition" % name):
+        return "/dev/" + os.path.basename(link)
+    return "/dev/" + name
+
+
+def sectors(dev):
+    with open("/sys/class/block/%s/size" % os.path.basename(os.path.realpath(dev))) as f:
+        return int(f.read())
+
+
+def start_sector(dev):
+    with open("/sys/class/block/%s/start" % os.path.basename(os.path.realpath(dev))) as f:
+        return int(f.read())
+
+
+def source_root():
+    """The squashfs root partition of the flash drive we are running from."""
+    src = sh(["findmnt", "-rn", "-o", "SOURCE", "/media/root-ro"], check=False).strip()
+    if src.startswith("/dev/"):
+        return os.path.realpath(src)
+    m = re.search(r"root=PARTUUID=(\S+)", open("/proc/cmdline").read())
+    if m and os.path.exists("/dev/disk/by-partuuid/" + m.group(1)):
+        return os.path.realpath("/dev/disk/by-partuuid/" + m.group(1))
+    raise RuntimeError("cannot find the boot device")
+
+
+def source_layout():
+    root = source_root()
+    disk = parent_disk(root)
+    esp = part_path(disk, 1)
+    if not os.path.exists(esp):
+        raise RuntimeError("cannot find the boot partition")
+    return disk, esp, root
+
+
+def needed_bytes():
+    disk, esp, root = source_layout()
+    return (start_sector(root) + sectors(root)) * 512 + MIN_DATA
+
+
+def candidates():
+    src_disk = source_layout()[0]
+    need = needed_bytes()
+    j = json.loads(sh(["lsblk", "-J", "-d", "-b", "-p", "-o", "NAME,SIZE,MODEL,VENDOR,TRAN,TYPE,RM,RO,SERIAL"]))
+    res = []
+    for d in j.get("blockdevices", []):
+        if d.get("type") != "disk" or str(d.get("ro")) in ("1", "true", "True"):
+            continue
+        if d["name"] == src_disk or int(d.get("size") or 0) < need:
+            continue
+        res.append({"name": d["name"], "size": int(d["size"]),
+                    "model": ((d.get("vendor") or "").strip() + " " + (d.get("model") or "").strip()).strip(),
+                    "tran": d.get("tran") or "", "removable": str(d.get("rm")) in ("1", "true", "True")})
+    return res
+
+
+def cmd_list():
+    print(json.dumps({"disks": candidates(), "need": needed_bytes()}))
+
+
+# ------------------------------------------------------------------ install
+def copy_verify(src, dst, size, base, span, label):
+    """Copy `size` bytes src -> dst, then read dst back and compare. Progress goes from base to base+span percent."""
+    h = hashlib.sha256()
+    done = 0
+    last = 0
+    with open(src, "rb") as fi, open(dst, "r+b", buffering=0) as fo:
+        while done < size:
+            buf = fi.read(min(4 * MIB, size - done))
+            if not buf:
+                raise RuntimeError("short read from " + src)
+            fo.write(buf)
+            h.update(buf)
+            done += len(buf)
+            pct = base + int(span * 0.6 * done / size)
+            if pct != last:
+                last = pct
+                progress(pct, label)
+        os.fsync(fo.fileno())
+    sh(["blockdev", "--flushbufs", dst], check=False)
+    try:
+        with open("/proc/sys/vm/drop_caches", "w") as f:
+            f.write("3")
+    except OSError:
+        pass
+    h2 = hashlib.sha256()
+    done = 0
+    with open(dst, "rb") as fo:
+        while done < size:
+            buf = fo.read(min(4 * MIB, size - done))
+            if not buf:
+                raise RuntimeError("short read back from " + dst)
+            h2.update(buf)
+            done += len(buf)
+            pct = base + int(span * 0.6 + span * 0.4 * done / size)
+            if pct != last:
+                last = pct
+                progress(pct, label + " (проверка / verifying)")
+    if h.digest() != h2.digest():
+        raise RuntimeError("verification failed for " + dst)
+
+
+def umount_all(disk):
+    for line in sh(["lsblk", "-ln", "-o", "NAME,MOUNTPOINTS", disk], check=False).splitlines():
+        parts = line.split(None, 1)
+        if len(parts) == 2:
+            for mp in parts[1].split():
+                sh(["umount", mp], check=False)
+    sh(["swapoff", "-a"], check=False)
+
+
+def wait_part(path, tries=60):
+    for _ in range(tries):
+        if os.path.exists("/sys/class/block/" + os.path.basename(path)) and os.path.exists(path):
+            return
+        time.sleep(0.5)
+    raise RuntimeError("partition did not appear: " + path)
+
+
+def cmd_run(disk, copy_cfg):
+    if "kiosk.install=1" not in open("/proc/cmdline").read().split():
+        raise RuntimeError("not in installer mode")
+    if not re.fullmatch(r"/dev/[A-Za-z0-9]+", disk) or not os.path.exists("/sys/class/block/" + os.path.basename(disk)):
+        raise RuntimeError("bad disk " + disk)
+    if disk not in [c["name"] for c in candidates()]:
+        raise RuntimeError("disk is not suitable: " + disk)
+    src_disk, src_esp, src_root = source_layout()
+    esp_sz, root_sz = sectors(src_esp) * 512, sectors(src_root) * 512
+    esp_start, root_start = start_sector(src_esp), start_sector(src_root)
+    total = sectors(disk)
+    data_start = ((root_start + sectors(src_root)) + 2047) // 2048 * 2048
+    data_size = min(total - data_start - 2048, MBR_MAX - data_start)
+    new_id = "%08x" % random.randint(0x10000000, 0xfffffffe)
+
+    progress(1, "Подготовка диска / Preparing the disk")
+    umount_all(disk)
+    for p in sh(["lsblk", "-ln", "-o", "PATH", disk], check=False).split():
+        if p != disk:
+            sh(["wipefs", "-a", "-f", p], check=False)
+    sh(["wipefs", "-a", "-f", disk])                         # also removes the backup GPT at the end of the disk
+    sh(["dd", "if=/dev/zero", "of=" + disk, "bs=1M", "count=1", "conv=fsync", "status=none"])
+    # first MiB of the flash drive: MBR boot code + BIOS GRUB core.img
+    sh(["dd", "if=" + src_disk, "of=" + disk, "bs=1M", "count=1", "conv=fsync", "status=none"])
+    layout = ("label: dos\nlabel-id: 0x%s\nunit: sectors\n\n"
+              "start=%d, size=%d, type=ef, bootable\n"
+              "start=%d, size=%d, type=83\n"
+              "start=%d, size=%d, type=83\n") % (
+        new_id, esp_start, sectors(src_esp), root_start, sectors(src_root), data_start, data_size)
+    r = subprocess.run(["sfdisk", "--no-reread", "--no-tell-kernel", disk], input=layout, text=True,
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    if r.returncode != 0:
+        raise RuntimeError("sfdisk: " + r.stdout[-300:])
+    sh(["partx", "-d", disk], check=False)
+    sh(["partx", "-a", disk], check=False)
+    sh(["udevadm", "settle", "--timeout=20"], check=False)
+    p1, p2, p3 = (part_path(disk, i) for i in (1, 2, 3))
+    for p in (p1, p2, p3):
+        wait_part(p)
+
+    copy_verify(src_esp, p1, esp_sz, 3, 12, "Загрузочный раздел / Boot partition")
+    copy_verify(src_root, p2, root_sz, 15, 70, "Система / System")
+
+    progress(86, "Раздел данных / Data partition")
+    sh(["mke2fs", "-q", "-F", "-t", "ext4", "-L", "KIOSKDATA", "-E", "root_owner=0:0", p3])
+    os.makedirs("/mnt/inst-data", exist_ok=True)
+    sh(["mount", "-t", "ext4", p3, "/mnt/inst-data"])
+    try:
+        for d, mode, own in (("kiosk", 0o700, (1000, 1000)), ("nm", 0o755, (0, 0)), ("netplan", 0o700, (0, 0))):
+            path = "/mnt/inst-data/" + d
+            os.makedirs(path, exist_ok=True)
+            os.chmod(path, mode)
+            os.chown(path, *own)
+        if copy_cfg:
+            for d in ("kiosk", "nm", "netplan"):
+                if os.path.isdir("/data/" + d):
+                    sh(["cp", "-a", "/data/%s/." % d, "/mnt/inst-data/%s/" % d], check=False)
+        os.sync()
+    finally:
+        sh(["umount", "/mnt/inst-data"], check=False)
+
+    progress(90, "Загрузчик / Boot loader")
+    os.makedirs("/mnt/inst-esp", exist_ok=True)
+    sh(["mount", "-t", "vfat", p1, "/mnt/inst-esp"])
+    try:
+        for d in ("boot/grub", "EFI/BOOT", "EFI/ubuntu"):
+            path = "/mnt/inst-esp/%s/grub.cfg" % d
+            if not os.path.exists(path):
+                continue
+            with open(path, encoding="utf-8") as f:
+                cfg = f.read()
+            cfg = re.sub(r"#INSTALL-BEGIN.*?#INSTALL-END\n?", "", cfg, flags=re.S)   # no installer entry on the PC
+            cfg = cfg.replace("PARTUUID=%s-" % OLD_ID, "PARTUUID=%s-" % new_id)     # unique disk id
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(cfg)
+        os.sync()
+    finally:
+        sh(["umount", "/mnt/inst-esp"], check=False)
+
+    if os.path.isdir("/sys/firmware/efi") and sh(["which", "efibootmgr"], check=False).strip():
+        progress(95, "Запись UEFI / UEFI boot entry")
+        for line in sh(["efibootmgr"], check=False).splitlines():
+            m = re.match(r"Boot([0-9A-F]{4})\*? Thin client", line)
+            if m:
+                sh(["efibootmgr", "-B", "-b", m.group(1)], check=False)
+        sh(["efibootmgr", "-c", "-d", disk, "-p", "1", "-L", "Thin client",
+            "-l", "\\EFI\\BOOT\\BOOTX64.EFI"], check=False)   # best effort: the fallback path boots anyway
+
+    os.sync()
+    progress(100, "Готово / Done")
+    out("DONE")
+
+
+def main():
+    a = sys.argv[1:]
+    try:
+        if a[:1] == ["list"]:
+            cmd_list()
+        elif a[:1] == ["unit"] and len(a) == 2:      # instance name of kiosk-install@.service: "sda" or "sda_nocfg"
+            name, _, flag = a[1].partition("_")
+            cmd_run("/dev/" + name, flag != "nocfg")
+        elif a[:1] == ["run"] and len(a) >= 2:
+            cmd_run(a[1], not (len(a) > 2 and a[2] == "nocfg"))
+        else:
+            print(__doc__)
+            return 2
+    except Exception as e:  # noqa: BLE001
+        out("ERROR %s" % e)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
 __KIT_EOF__
 mkdir -p "$DEST/test"
 cat > "$DEST/test/mk-test-image.sh" <<'__KIT_EOF__'
@@ -1889,30 +2566,34 @@ wait
 __KIT_EOF__
 echo "== verifying unpacked files"
 cat > "$DEST/.manifest.sha256" <<'__KIT_EOF__'
-82bbcd09541a11a4f31ef096f5d1c8312914ab552011999f443b765c227e1a56  README.md
-0158a9592d09a6d130fdbdb1abacc08673de0543926cc3815fb172ec9858d648  boot/early.cfg
-753bedb83224707f6df1bc13d8c0f60cf5dcd8688e1195008c37294434eaa143  boot/grub.cfg
+a863c02fb557bcb4d3ae07b261693424700bd6709ff243c0ce205dac908717fc  README.md
+8d37e3a11f5e447201cef7a58b14e2afc8c2b121a1aae8d901cc5bc61e22a4c5  boot/early.cfg
+8df535eb5edf71bfccd5a046562cac8a7939f09292da25a7bffe13d4fea10b6d  boot/grub.cfg
 dd028468a5d7a13cf9e7776142400c8c110ded810d2b6f6d703eb6473d61fb31  build-all.sh
-0e5d137f5ad33640350012be67de9219c65c22c0e9814142d64ddf43f71a68e0  build-image.sh
-9a20fd2497cbd17b0b84dc3871402c05fce2db51df2dd94805c09fa2ce162399  build-rootfs.sh
+08f9ac29be737ac8912b27f37be6d4fdee81e347e849041bd8bc40d46a41533a  build-image.sh
+47415f6c65e88a9c20d565a408d0a232877e39aab0875b2533229c214330e6d6  build-rootfs.sh
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  overlay/etc/NetworkManager/conf.d/10-dns-resolved.conf
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  overlay/etc/NetworkManager/conf.d/10-globally-managed-devices.conf
 daecdafe66e474402395c4fb23eb20bb1db1bf45fc8a1da89d286a57570a869e  overlay/etc/NetworkManager/conf.d/kiosk.conf
 7a6730e8648c5d4168ba77af4b141db76c7c6abac8eb1becd4a4488b81d5b74b  overlay/etc/X11/xorg.conf.d/10-kiosk.conf
 c20cd567970bb1fd7364af1e68baeb47ad8be67a8ab8766a1ff2031c5141d9cc  overlay/etc/fstab
 48bef90bf3804ed0a3a3a2ad6cb6c2a0ccd06ab0d169e55aba89f92943add2de  overlay/etc/hostname
+21f5338821e1921d916444ec33b1770db087c3f68b1122e7b64ab77745ed177d  overlay/etc/polkit-1/rules.d/50-kiosk-install.rules
 8e1cebeaa97f7d2b59e078ffe5c6cb10ad144049277e37d83ef7cecfcf0a0afd  overlay/etc/polkit-1/rules.d/50-kiosk.rules
 1a25306c51ebefbe547f20a43603bbbadf8f2464f510ff755445a7a70a1f2733  overlay/etc/sysctl.d/90-kiosk.conf
 b86aaef6227a5824e04d89c3ce772d8479fadd5e6a1e13d908cce627bfd5f7cc  overlay/etc/systemd/journald.conf.d/kiosk.conf
 9a8764b2132a80abcc30d5a6a30180a90177ba8eddf0741d0455349a5ddfded8  overlay/etc/systemd/logind.conf.d/kiosk.conf
 4368449caebff4de8fb38f73787b63c7a575aa49862f6921de34a28d4764b8d3  overlay/etc/systemd/system/NetworkManager.service.d/kiosk.conf
 41f6a7b7e7d48646734c2c937f4fc1eef56102048a63420d349bb6d2155af230  overlay/etc/systemd/system/kiosk-growdata.service
+55b5a21eed1da4036179f980fb451706cd893e5e6e69d869df2e504437cdffb0  overlay/etc/systemd/system/kiosk-install@.service
 9fbf7d8db6455969f2e62cba6087cdf04f5170f6553fa5bf34ea4ad3bcf19769  overlay/etc/systemd/system/kiosk.service
 6a2a46a868a19fdbab9db2c85831059c428cfabc94ad9b461b8a6c4a4f07c6b4  overlay/etc/udev/rules.d/90-kiosk-usb.rules
-a68e0e29f5bfafa81c4e67b93bb4584ddabc4becca59cab26e526b2f7e6886b3  overlay/opt/kiosk/kiosk.py
+1f17b5c77234ae4a3fd96e06cb281da61a6293b61740e927765bd5e47d2fe266  overlay/opt/kiosk/installer.py
+67828ccb3e088b5704a1dcd0c9ca1649321e7a2c9cdd19a06757356093ee632b  overlay/opt/kiosk/kiosk.py
 a903543768178e611125db6cdf98020817466892fb4da56a4b2b6df2f8a4cba3  overlay/opt/kiosk/rc.xml
-ed3602962138a6b2408c77bbb1eda7cc8065f2bbc6a965e4d19727f1d70ddb39  overlay/opt/kiosk/session.sh
-94c0c1bde0f7cb4817684f73d8b01bc193828656ab99fe38ae63f0a125b2bcdb  overlay/usr/local/sbin/kiosk-growdata
+a5ca420724b24e64d6e864d810f188d2691d4e7998475a4d9ffc23fa385245fd  overlay/opt/kiosk/session.sh
+48d4190cc4151b85b860e084d099737b543013d80484a284160a0bd4740c4fce  overlay/usr/local/sbin/kiosk-growdata
+46b7264725c9a1b41bc8abc91d82bca985b91321ea07bc8334d210f6c829ae6d  overlay/usr/local/sbin/kiosk-install
 4a7733f237ed0ce1f06686ae02be449c15fcbfabc6c7a7123ea950c76660d837  test/mk-test-image.sh
 e76eb83ffb324ff644b69fb65d8ab6cec97d35369d2a1056bc9513a397b5360a  test/qmon.py
 d39714cda94e064594b9aac27d7931c744d1354fc4440fba6b3f3f8c2776fbd8  test/rdpsrv.sh
@@ -1923,6 +2604,6 @@ f666170a9c3910d292a7c41229b33be88c014765909be84f9a001322096c9da4  test/uitest.sh
 35ecd03f14be2d2a19da60dd3594b28e7518e52bf15ada8a50718275b71eca1c  test/vncsrv.sh
 __KIT_EOF__
 ( cd "$DEST" && sha256sum -c --quiet .manifest.sha256 ) || { echo "ERROR: the script was damaged during copying (checksum mismatch). Re-download it." >&2; exit 1; }
-chmod +x "$DEST/build-all.sh" "$DEST/build-rootfs.sh" "$DEST/build-image.sh" "$DEST/overlay/opt/kiosk/kiosk.py" "$DEST/overlay/opt/kiosk/session.sh" "$DEST/overlay/usr/local/sbin/kiosk-growdata"
+chmod +x "$DEST/build-all.sh" "$DEST/build-rootfs.sh" "$DEST/build-image.sh" "$DEST/overlay/opt/kiosk/kiosk.py" "$DEST/overlay/opt/kiosk/session.sh" "$DEST/overlay/opt/kiosk/installer.py" "$DEST/overlay/usr/local/sbin/kiosk-growdata" "$DEST/overlay/usr/local/sbin/kiosk-install"
 [ -n "${KIT_ONLY:-}" ] && { echo "kit unpacked (KIT_ONLY set), not building"; exit 0; }
 exec sh "$DEST/build-all.sh" "${1:-$PWD/out}"

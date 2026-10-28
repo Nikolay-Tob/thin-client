@@ -7,4 +7,6 @@ xsetroot -solid '#20232a' -cursor_name left_ptr 2>/dev/null
 pulseaudio --start --exit-idle-time=-1 --log-target=syslog 2>/dev/null
 ( sleep 3; pactl set-sink-mute @DEFAULT_SINK@ 0; pactl set-sink-volume @DEFAULT_SINK@ 85% ) >/dev/null 2>&1 &
 openbox --config-file /opt/kiosk/rc.xml >/dev/null 2>&1 &
+# "Install to PC" boot menu entry: show the installer instead of the kiosk
+if grep -qw kiosk.install=1 /proc/cmdline; then exec /opt/kiosk/installer.py; fi
 exec /opt/kiosk/kiosk.py

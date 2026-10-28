@@ -1,0 +1,283 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+"""Install the thin client from the boot flash drive onto an internal disk of the PC.
+
+  kiosk-install list            -> JSON list of disks the system can be installed on (no root needed)
+  kiosk-install run DISK [nocfg] -> install (root; the GUI starts kiosk-install@DISK[_nocfg].service)
+
+The installer only works when the system was booted from the "Install to PC" menu entry (kiosk.install=1).
+Layout of the target disk is the same as on the flash drive (MBR: ESP FAT32, squashfs root, ext4 data),
+the ESP and root are copied byte for byte and verified, the data partition fills the rest of the disk.
+Progress is printed as lines: "PROGRESS <percent> <message>", then "DONE" or "ERROR <message>".
+"""
+import hashlib
+import json
+import os
+import random
+import re
+import subprocess
+import sys
+import time
+
+MIB = 1 << 20
+MIN_DATA = 256 * MIB
+MBR_MAX = (1 << 32) - 1            # sectors addressable by an MBR partition table
+OLD_ID = "4b50d0c1"                # disk id the flash image is built with (referenced by grub.cfg)
+
+
+def sh(cmd, check=True, timeout=300):
+    r = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=timeout)
+    if check and r.returncode != 0:
+        raise RuntimeError("%s: %s" % (" ".join(cmd), r.stdout.strip()[-300:]))
+    return r.stdout
+
+
+def out(line):
+    print(line, flush=True)
+
+
+def progress(pct, msg):
+    out("PROGRESS %d %s" % (pct, msg))
+
+
+def part_path(disk, n):
+    return "%s%s%d" % (disk, "p" if disk[-1].isdigit() else "", n)
+
+
+def parent_disk(dev):
+    """/dev/sda2 -> /dev/sda"""
+    name = os.path.basename(os.path.realpath(dev))
+    link = os.path.realpath("/sys/class/block/%s/.." % name)
+    if os.path.exists("/sys/class/block/%s/partition" % name):
+        return "/dev/" + os.path.basename(link)
+    return "/dev/" + name
+
+
+def sectors(dev):
+    with open("/sys/class/block/%s/size" % os.path.basename(os.path.realpath(dev))) as f:
+        return int(f.read())
+
+
+def start_sector(dev):
+    with open("/sys/class/block/%s/start" % os.path.basename(os.path.realpath(dev))) as f:
+        return int(f.read())
+
+
+def source_root():
+    """The squashfs root partition of the flash drive we are running from."""
+    src = sh(["findmnt", "-rn", "-o", "SOURCE", "/media/root-ro"], check=False).strip()
+    if src.startswith("/dev/"):
+        return os.path.realpath(src)
+    m = re.search(r"root=PARTUUID=(\S+)", open("/proc/cmdline").read())
+    if m and os.path.exists("/dev/disk/by-partuuid/" + m.group(1)):
+        return os.path.realpath("/dev/disk/by-partuuid/" + m.group(1))
+    raise RuntimeError("cannot find the boot device")
+
+
+def source_layout():
+    root = source_root()
+    disk = parent_disk(root)
+    esp = part_path(disk, 1)
+    if not os.path.exists(esp):
+        raise RuntimeError("cannot find the boot partition")
+    return disk, esp, root
+
+
+def needed_bytes():
+    disk, esp, root = source_layout()
+    return (start_sector(root) + sectors(root)) * 512 + MIN_DATA
+
+
+def candidates():
+    src_disk = source_layout()[0]
+    need = needed_bytes()
+    j = json.loads(sh(["lsblk", "-J", "-d", "-b", "-p", "-o", "NAME,SIZE,MODEL,VENDOR,TRAN,TYPE,RM,RO,SERIAL"]))
+    res = []
+    for d in j.get("blockdevices", []):
+        if d.get("type") != "disk" or str(d.get("ro")) in ("1", "true", "True"):
+            continue
+        if d["name"] == src_disk or int(d.get("size") or 0) < need:
+            continue
+        res.append({"name": d["name"], "size": int(d["size"]),
+                    "model": ((d.get("vendor") or "").strip() + " " + (d.get("model") or "").strip()).strip(),
+                    "tran": d.get("tran") or "", "removable": str(d.get("rm")) in ("1", "true", "True")})
+    return res
+
+
+def cmd_list():
+    print(json.dumps({"disks": candidates(), "need": needed_bytes()}))
+
+
+# ------------------------------------------------------------------ install
+def copy_verify(src, dst, size, base, span, label):
+    """Copy `size` bytes src -> dst, then read dst back and compare. Progress goes from base to base+span percent."""
+    h = hashlib.sha256()
+    done = 0
+    last = 0
+    with open(src, "rb") as fi, open(dst, "r+b", buffering=0) as fo:
+        while done < size:
+            buf = fi.read(min(4 * MIB, size - done))
+            if not buf:
+                raise RuntimeError("short read from " + src)
+            fo.write(buf)
+            h.update(buf)
+            done += len(buf)
+            pct = base + int(span * 0.6 * done / size)
+            if pct != last:
+                last = pct
+                progress(pct, label)
+        os.fsync(fo.fileno())
+    sh(["blockdev", "--flushbufs", dst], check=False)
+    try:
+        with open("/proc/sys/vm/drop_caches", "w") as f:
+            f.write("3")
+    except OSError:
+        pass
+    h2 = hashlib.sha256()
+    done = 0
+    with open(dst, "rb") as fo:
+        while done < size:
+            buf = fo.read(min(4 * MIB, size - done))
+            if not buf:
+                raise RuntimeError("short read back from " + dst)
+            h2.update(buf)
+            done += len(buf)
+            pct = base + int(span * 0.6 + span * 0.4 * done / size)
+            if pct != last:
+                last = pct
+                progress(pct, label + " (проверка / verifying)")
+    if h.digest() != h2.digest():
+        raise RuntimeError("verification failed for " + dst)
+
+
+def umount_all(disk):
+    for line in sh(["lsblk", "-ln", "-o", "NAME,MOUNTPOINTS", disk], check=False).splitlines():
+        parts = line.split(None, 1)
+        if len(parts) == 2:
+            for mp in parts[1].split():
+                sh(["umount", mp], check=False)
+    sh(["swapoff", "-a"], check=False)
+
+
+def wait_part(path, tries=60):
+    for _ in range(tries):
+        if os.path.exists("/sys/class/block/" + os.path.basename(path)) and os.path.exists(path):
+            return
+        time.sleep(0.5)
+    raise RuntimeError("partition did not appear: " + path)
+
+
+def cmd_run(disk, copy_cfg):
+    if "kiosk.install=1" not in open("/proc/cmdline").read().split():
+        raise RuntimeError("not in installer mode")
+    if not re.fullmatch(r"/dev/[A-Za-z0-9]+", disk) or not os.path.exists("/sys/class/block/" + os.path.basename(disk)):
+        raise RuntimeError("bad disk " + disk)
+    if disk not in [c["name"] for c in candidates()]:
+        raise RuntimeError("disk is not suitable: " + disk)
+    src_disk, src_esp, src_root = source_layout()
+    esp_sz, root_sz = sectors(src_esp) * 512, sectors(src_root) * 512
+    esp_start, root_start = start_sector(src_esp), start_sector(src_root)
+    total = sectors(disk)
+    data_start = ((root_start + sectors(src_root)) + 2047) // 2048 * 2048
+    data_size = min(total - data_start - 2048, MBR_MAX - data_start)
+    new_id = "%08x" % random.randint(0x10000000, 0xfffffffe)
+
+    progress(1, "Подготовка диска / Preparing the disk")
+    umount_all(disk)
+    for p in sh(["lsblk", "-ln", "-o", "PATH", disk], check=False).split():
+        if p != disk:
+            sh(["wipefs", "-a", "-f", p], check=False)
+    sh(["wipefs", "-a", "-f", disk])                         # also removes the backup GPT at the end of the disk
+    sh(["dd", "if=/dev/zero", "of=" + disk, "bs=1M", "count=1", "conv=fsync", "status=none"])
+    # first MiB of the flash drive: MBR boot code + BIOS GRUB core.img
+    sh(["dd", "if=" + src_disk, "of=" + disk, "bs=1M", "count=1", "conv=fsync", "status=none"])
+    layout = ("label: dos\nlabel-id: 0x%s\nunit: sectors\n\n"
+              "start=%d, size=%d, type=ef, bootable\n"
+              "start=%d, size=%d, type=83\n"
+              "start=%d, size=%d, type=83\n") % (
+        new_id, esp_start, sectors(src_esp), root_start, sectors(src_root), data_start, data_size)
+    r = subprocess.run(["sfdisk", "--no-reread", "--no-tell-kernel", disk], input=layout, text=True,
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    if r.returncode != 0:
+        raise RuntimeError("sfdisk: " + r.stdout[-300:])
+    sh(["partx", "-d", disk], check=False)
+    sh(["partx", "-a", disk], check=False)
+    sh(["udevadm", "settle", "--timeout=20"], check=False)
+    p1, p2, p3 = (part_path(disk, i) for i in (1, 2, 3))
+    for p in (p1, p2, p3):
+        wait_part(p)
+
+    copy_verify(src_esp, p1, esp_sz, 3, 12, "Загрузочный раздел / Boot partition")
+    copy_verify(src_root, p2, root_sz, 15, 70, "Система / System")
+
+    progress(86, "Раздел данных / Data partition")
+    sh(["mke2fs", "-q", "-F", "-t", "ext4", "-L", "KIOSKDATA", "-E", "root_owner=0:0", p3])
+    os.makedirs("/mnt/inst-data", exist_ok=True)
+    sh(["mount", "-t", "ext4", p3, "/mnt/inst-data"])
+    try:
+        for d, mode, own in (("kiosk", 0o700, (1000, 1000)), ("nm", 0o755, (0, 0)), ("netplan", 0o700, (0, 0))):
+            path = "/mnt/inst-data/" + d
+            os.makedirs(path, exist_ok=True)
+            os.chmod(path, mode)
+            os.chown(path, *own)
+        if copy_cfg:
+            for d in ("kiosk", "nm", "netplan"):
+                if os.path.isdir("/data/" + d):
+                    sh(["cp", "-a", "/data/%s/." % d, "/mnt/inst-data/%s/" % d], check=False)
+        os.sync()
+    finally:
+        sh(["umount", "/mnt/inst-data"], check=False)
+
+    progress(90, "Загрузчик / Boot loader")
+    os.makedirs("/mnt/inst-esp", exist_ok=True)
+    sh(["mount", "-t", "vfat", p1, "/mnt/inst-esp"])
+    try:
+        for d in ("boot/grub", "EFI/BOOT", "EFI/ubuntu"):
+            path = "/mnt/inst-esp/%s/grub.cfg" % d
+            if not os.path.exists(path):
+                continue
+            with open(path, encoding="utf-8") as f:
+                cfg = f.read()
+            cfg = re.sub(r"#INSTALL-BEGIN.*?#INSTALL-END\n?", "", cfg, flags=re.S)   # no installer entry on the PC
+            cfg = cfg.replace("PARTUUID=%s-" % OLD_ID, "PARTUUID=%s-" % new_id)     # unique disk id
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(cfg)
+        os.sync()
+    finally:
+        sh(["umount", "/mnt/inst-esp"], check=False)
+
+    if os.path.isdir("/sys/firmware/efi") and sh(["which", "efibootmgr"], check=False).strip():
+        progress(95, "Запись UEFI / UEFI boot entry")
+        for line in sh(["efibootmgr"], check=False).splitlines():
+            m = re.match(r"Boot([0-9A-F]{4})\*? Thin client", line)
+            if m:
+                sh(["efibootmgr", "-B", "-b", m.group(1)], check=False)
+        sh(["efibootmgr", "-c", "-d", disk, "-p", "1", "-L", "Thin client",
+            "-l", "\\EFI\\BOOT\\BOOTX64.EFI"], check=False)   # best effort: the fallback path boots anyway
+
+    os.sync()
+    progress(100, "Готово / Done")
+    out("DONE")
+
+
+def main():
+    a = sys.argv[1:]
+    try:
+        if a[:1] == ["list"]:
+            cmd_list()
+        elif a[:1] == ["unit"] and len(a) == 2:      # instance name of kiosk-install@.service: "sda" or "sda_nocfg"
+            name, _, flag = a[1].partition("_")
+            cmd_run("/dev/" + name, flag != "nocfg")
+        elif a[:1] == ["run"] and len(a) >= 2:
+            cmd_run(a[1], not (len(a) > 2 and a[2] == "nocfg"))
+        else:
+            print(__doc__)
+            return 2
+    except Exception as e:  # noqa: BLE001
+        out("ERROR %s" % e)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

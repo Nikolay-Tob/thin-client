@@ -1,0 +1,8 @@
+// The installer GUI (user kiosk, only in the "Install to PC" boot mode) starts kiosk-install@<disk>.service.
+polkit.addRule(function(action, subject) {
+    if (subject.user == "kiosk" &&
+        action.id.indexOf("org.freedesktop.systemd1.manage-units") == 0 &&
+        action.lookup("unit") && action.lookup("unit").indexOf("kiosk-install@") == 0) {
+        return polkit.Result.YES;
+    }
+});

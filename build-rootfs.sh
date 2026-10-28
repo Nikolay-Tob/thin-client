@@ -63,7 +63,7 @@ if ! stage s3-configure; then
     log configure
     mounts
     cp -a "$KIT/overlay/." $R/
-    chmod 755 $R/opt/kiosk/kiosk.py $R/opt/kiosk/session.sh $R/usr/local/sbin/kiosk-growdata
+    chmod 755 $R/opt/kiosk/kiosk.py $R/opt/kiosk/installer.py $R/opt/kiosk/session.sh $R/usr/local/sbin/kiosk-growdata $R/usr/local/sbin/kiosk-install
     for g in audio video plugdev input render; do chroot $R getent group $g >/dev/null || chroot $R groupadd -r $g; done
     chroot $R id kiosk >/dev/null 2>&1 || chroot $R useradd -m -u 1000 -s /bin/bash -G audio,video,plugdev,input,render kiosk
     chroot $R systemctl enable kiosk.service kiosk-growdata.service NetworkManager.service
@@ -102,9 +102,25 @@ if ! stage s4-prune; then
     done_stage s4-prune
 fi
 
+# installer needs efibootmgr (UEFI boot entry); added as a separate stage so existing rootfs caches stay usable
+if ! stage s5-installer; then
+    log installer-packages
+    mounts
+    rm -f $R/etc/resolv.conf; cp /etc/resolv.conf $R/etc/resolv.conf
+    printf '#!/bin/sh\nexit 101\n' > $R/usr/sbin/policy-rc.d; chmod +x $R/usr/sbin/policy-rc.d
+    chroot $R apt-get update -qq
+    # apt refuses to install while the pruned Mesa/LLVM packages are 'broken': fetch the .debs and use dpkg
+    chroot $R sh -c 'cd /tmp && apt-get download efibootmgr libefiboot1t64 libefivar1t64 libpopt0 && dpkg -i --force-depends /tmp/*.deb && rm -f /tmp/*.deb'
+    chroot $R apt-get clean
+    rm -rf $R/var/lib/apt/lists/* $R/var/cache/apt/* $R/usr/share/man $R/usr/share/doc/efibootmgr 2>/dev/null || true
+    rm -f $R/usr/sbin/policy-rc.d $R/etc/resolv.conf
+    ln -s ../run/NetworkManager/resolv.conf $R/etc/resolv.conf
+    done_stage s5-installer
+fi
+
 # always refresh our own files (cheap, idempotent) so edits to overlay/ end up in the image
 cp -a "$KIT/overlay/." $R/
-chmod 755 $R/opt/kiosk/kiosk.py $R/opt/kiosk/session.sh $R/usr/local/sbin/kiosk-growdata
+chmod 755 $R/opt/kiosk/kiosk.py $R/opt/kiosk/installer.py $R/opt/kiosk/session.sh $R/usr/local/sbin/kiosk-growdata $R/usr/local/sbin/kiosk-install
 umounts
 log squashfs
 rm -f "$OUT/root.sqsh"

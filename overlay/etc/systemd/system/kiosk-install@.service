@@ -1,0 +1,10 @@
+[Unit]
+Description=Install the thin client onto an internal disk (%i)
+ConditionKernelCommandLine=kiosk.install=1
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/kiosk-install unit %i
+StandardOutput=truncate:/run/kiosk-install.log
+StandardError=inherit
+TimeoutStartSec=infinity

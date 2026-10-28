@@ -14,11 +14,12 @@ echo "root=${ROOT_MIB}MiB total=${TOTAL_MIB}MiB"
 # --- ESP: signed shim + GRUB (UEFI / Secure Boot), grub.cfg, kernel, initrd
 truncate -s ${ESP_MIB}M esp.img
 mkfs.vfat -F 32 -n KIOSKBOOT esp.img >/dev/null
-mmd -i esp.img ::/EFI ::/EFI/BOOT ::/EFI/ubuntu ::/boot ::/boot/grub
+mmd -i esp.img ::/EFI ::/EFI/BOOT ::/EFI/ubuntu ::/boot ::/boot/grub ::/boot/grub/fonts
 mcopy -i esp.img /usr/lib/shim/shimx64.efi.signed ::/EFI/BOOT/BOOTX64.EFI
 mcopy -i esp.img /usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed ::/EFI/BOOT/grubx64.efi
 mcopy -i esp.img /usr/lib/shim/mmx64.efi ::/EFI/BOOT/mmx64.efi
 for d in boot/grub EFI/BOOT EFI/ubuntu; do mcopy -i esp.img "$KIT/boot/grub.cfg" ::/$d/grub.cfg; done
+mcopy -i esp.img /usr/share/grub/unicode.pf2 ::/boot/grub/unicode.pf2
 mcopy -i esp.img "$OUT/bootfiles/vmlinuz" ::/boot/vmlinuz
 mcopy -i esp.img "$OUT/bootfiles/initrd.img" ::/boot/initrd.img
 
@@ -44,7 +45,8 @@ dd if=data.img of=disk.img bs=1M seek=$((1+ESP_MIB+ROOT_MIB)) conv=notrunc statu
 
 # --- BIOS GRUB: core.img written straight into the gap after the MBR (no loop devices needed)
 grub-mkimage -d /usr/lib/grub/i386-pc -O i386-pc -o core.img -c "$KIT/boot/early.cfg" -p '(hd0,msdos1)/boot/grub' \
-  biosdisk part_msdos part_gpt fat ext2 normal configfile linux search search_label search_fs_uuid echo test ls cat boot gzio minicmd
+  biosdisk part_msdos part_gpt fat ext2 normal configfile linux search search_label search_fs_uuid echo test ls cat boot gzio minicmd \
+  font gfxterm all_video video video_fb loadenv terminal
 python3 - "$W/disk.img" "$W/core.img" <<'PY'
 import struct, sys
 disk, corep = sys.argv[1:3]

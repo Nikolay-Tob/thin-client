@@ -31,7 +31,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib, Gdk  # noqa: E402
 
-VERSION = "1.3"
+VERSION = "1.4"
 
 
 def _wait_data():

@@ -1,7 +1,17 @@
 #!/bin/sh
 # Prepare persistent storage: grow the last (data) partition to fill the device,
 # check/grow its filesystem, mount it on /data and bind NetworkManager profiles from it.
-DEV=$(blkid -L KIOSKDATA 2>/dev/null)
+# Several KIOSKDATA partitions can be present (flash drive left plugged in after installing to the PC):
+# use the one on the same disk as the running system.
+ROOTSRC=$(findmnt -rn -o SOURCE /media/root-ro 2>/dev/null)
+ROOTDISK=
+[ -b "$ROOTSRC" ] && ROOTDISK=$(basename "$(readlink -f "/sys/class/block/$(basename "$ROOTSRC")/..")")
+DEV=
+for c in $(blkid -t LABEL=KIOSKDATA -o device 2>/dev/null); do
+    [ -z "$DEV" ] && DEV=$c
+    if [ -n "$ROOTDISK" ] && [ "$(basename "$(readlink -f "/sys/class/block/$(basename "$c")/..")")" = "$ROOTDISK" ]; then DEV=$c; break; fi
+done
+INSTALL=0; grep -qw kiosk.install=1 /proc/cmdline && INSTALL=1   # installer mode: leave the flash drive as it is
 if [ -b "$DEV" ]; then
     SYS=/sys/class/block/$(basename "$DEV")
     PART=$(cat "$SYS/partition" 2>/dev/null)
@@ -9,7 +19,7 @@ if [ -b "$DEV" ]; then
     DISK_SECT=$(blockdev --getsz "$DISK" 2>/dev/null)
     START=$(cat "$SYS/start" 2>/dev/null); SIZE=$(cat "$SYS/size" 2>/dev/null)
     GREW=0
-    if [ -n "$PART" ] && [ -n "$DISK_SECT" ] && [ $((DISK_SECT - START - SIZE)) -gt 8192 ]; then
+    if [ $INSTALL = 0 ] && [ -n "$PART" ] && [ -n "$DISK_SECT" ] && [ $((DISK_SECT - START - SIZE)) -gt 8192 ]; then
         echo ", +" | sfdisk --no-reread -N "$PART" "$DISK" >/dev/null 2>&1
         partx -u "$DISK" >/dev/null 2>&1 || partprobe "$DISK" >/dev/null 2>&1
         udevadm settle --timeout=15 >/dev/null 2>&1
