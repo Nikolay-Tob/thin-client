@@ -1,4 +1,8 @@
 #!/bin/sh
+# Unique host name per computer (DHCP servers and routers otherwise see many machines called "kiosk")
+MAC=$(cat /sys/class/net/[ew]*/address 2>/dev/null | head -n 1 | tr -d ':')
+[ -n "$MAC" ] && hostname "thin-$(echo "$MAC" | cut -c7-12)" 2>/dev/null
+
 # Prepare persistent storage: grow the last (data) partition to fill the device,
 # check/grow its filesystem, mount it on /data and bind NetworkManager profiles from it.
 # Several KIOSKDATA partitions can be present (flash drive left plugged in after installing to the PC):

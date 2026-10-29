@@ -24,7 +24,9 @@ cat > "$DEST/README.md" <<'__KIT_EOF__'
 - Подключение стартует сразу при загрузке (профиль с отметкой «Подключаться при загрузке»).
 - Профили подключений добавляются в окне настроек (готовых профилей в образе нет). Хранятся на самой флешке.
 - RDP: FreeRDP 3 — звук и микрофон, общий буфер обмена, проброс USB-устройств, несколько мониторов, динамическое разрешение.
-- VNC: TigerVNC — буфер обмена, несколько мониторов, пароль.
+- VNC: два клиента на выбор — TigerVNC (буфер обмена, несколько мониторов, шифрование TLS) и SSVNC (масштабирование и выбор режима курсора). По умолчанию клиент выбирается автоматически.
+- **Масштаб изображения** в профиле: «Авто», «Вписать в экран» (с сохранением пропорций), «Растянуть на весь экран», «Как есть (1:1)», 50 / 75 / 125 / 150 / 200 %. Для RDP: «Авто» (разрешение под экран), «Растянуть» (размер из профиля на весь экран), «Как есть», крупнее интерфейс Windows 125 / 150 / 200 %.
+- **Курсор мыши (VNC):** «Авто» (курсор сервера, точка, если его нет), «Форма курсора с сервера (X11)», «Курсор рисует сервер (в картинке)», «Локальная стрелка + курсор сервера». Если видна только точка, выберите «Курсор рисует сервер».
 - Сеть: Ethernet (DHCP или статический IP), Wi-Fi (поиск сетей, WPA-PSK, скрытые сети). Настройки сохраняются на флешке.
 - **Установка на ПК:** пункт «Установка на ПК» в меню загрузчика переносит систему на внутренний диск компьютера (BIOS и UEFI), дальше флешка не нужна.
 - Интерфейс на русском и английском, раскладка клавиатуры English / English + Русская.
@@ -46,8 +48,10 @@ cat > "$DEST/README.md" <<'__KIT_EOF__'
 | **Меню загрузчика (UEFI + Secure Boot):** там пункт называется «Install to PC» (GRUB не загружает шрифт с кириллицей при Secure Boot). | **Установка:** выбор диска, перенос настроек с флешки. |
 | ![Подтверждение](docs/screens/11-install-confirm.png) | ![Прогресс](docs/screens/12-install-progress.png) |
 | **Подтверждение:** диск будет стёрт. | **Копирование и проверка** загрузочного раздела и системы. |
-| ![Готово](docs/screens/13-install-done.png) | |
-| **Готово:** извлеките флешку и перезагрузите компьютер. | |
+| ![Готово](docs/screens/13-install-done.png) | ![Профиль VNC](docs/screens/14-vnc-profile.png) |
+| **Готово:** извлеките флешку и перезагрузите компьютер. | **Профиль VNC:** масштаб изображения, режим курсора, выбор клиента. |
+| ![VNC вписан](docs/screens/15-vnc-fit.png) | |
+| **VNC «Вписать в экран»:** картинка 1024×768 вписана в экран с сохранением пропорций. | |
 
 Скриншоты сделаны в эмуляторе QEMU с тестовыми серверами.
 
@@ -119,7 +123,15 @@ DHCP и статический IP с сохранением после пере�
 `build-image.sh` (разметка, BIOS- и UEFI-загрузчики), `overlay/` (приложение `opt/kiosk/kiosk.py`, службы systemd, настройки),
 `boot/` (grub.cfg), `test/` (запуск в QEMU, тестовые VNC/RDP-серверы).
 
+## VNC: масштаб, курсор, клиенты
+- **TigerVNC** (`xtigervncviewer`): шифрование TLS, несколько мониторов, подстройка разрешения сервера. Локального масштабирования и режимов курсора нет; «Как есть» отключает подстройку разрешения сервера.
+- **SSVNC** (`ssvncviewer`, на базе TightVNC): масштаб «Вписать», «Растянуть», проценты; все режимы курсора. **Ограничения:** нет TLS/RA2, только пароль VNC или без пароля; нет нескольких мониторов.
+- Клиент «Авто»: SSVNC, если выбран масштаб (кроме «Авто» и «Как есть») или режим курсора не «Авто», иначе TigerVNC. Размер экрана сервера определяется отдельным запросом (RFB), поэтому при неверном пароле или недоступном сервере «Вписать» работает как обычный полноэкранный режим без масштаба.
+- При ошибке пароля повторные попытки не выполняются, показывается сообщение. Журнал клиента: вкладка «Система» → «Журнал и сведения о системе».
+- Точное сопоставление координат мыши при масштабировании на реальном железе не проверялось (проверено в QEMU).
+
 ## История изменений
+- **1.5** — VNC: выбор режима курсора и клиента (TigerVNC / SSVNC), масштабирование изображения (вписать / растянуть / 1:1 / проценты), то же для RDP. Исправлено: бесконечные повторы при неверном пароле, флаг буфера обмена VNC, уникальное имя хоста (`thin-<mac>`), синхронизация времени (NTP), диалог «Журнал» на вкладке «Система», F12 работает и поверх SSVNC, команда `reload` для горячей перезагрузки настроек.
 - **1.4** — пункт «Установка на ПК» в меню загрузчика: установка системы на внутренний диск (BIOS и UEFI, с переносом настроек и проверкой копии).
   Меню загрузчика стало графическим (с кириллицей в BIOS); если рядом стоят флешка и установленный диск с одинаковыми метками, система берёт свой раздел данных.
 - **1.3** — добавлена горячая клавиша **F12**: открывает меню настроек, повторное нажатие возвращает к сеансу.
@@ -138,7 +150,7 @@ DHCP и статический IP с сохранением после пере�
 ## English summary
 Bootable USB thin client (Ubuntu 24.04, x86_64, BIOS + UEFI/Secure Boot) that connects straight to an RDP or VNC server at
 boot; kiosk mode, settings window via hotkeys (F12 or Ctrl+Alt+Shift+S/N/P/R/D/Space), "Install to PC" entry in the boot menu (Esc at start) copies the system to an internal disk, Ethernet/Wi-Fi/static IP, audio, clipboard,
-USB redirection, multi-monitor, Russian/English UI. Settings are stored on the flash drive (`KIOSKDATA` partition).
+USB redirection, multi-monitor, Russian/English UI. VNC: choice of client (TigerVNC / SSVNC), mouse cursor mode and image scaling (fit / stretch / 1:1 / percent). Settings are stored on the flash drive (`KIOSKDATA` partition).
 Download `thin-client.img` from the [latest release](https://github.com/Nikolay-Tob/thin-client/releases/latest) and write it with
 Rufus/balenaEtcher (DD mode) or `dd`. Build it yourself with `sudo sh thin-client-build.sh ./out`.
 __KIT_EOF__
@@ -411,6 +423,25 @@ if ! stage s5-installer; then
     rm -f $R/usr/sbin/policy-rc.d $R/etc/resolv.conf
     ln -s ../run/NetworkManager/resolv.conf $R/etc/resolv.conf
     done_stage s5-installer
+fi
+
+# SSVNC viewer (local scaling, cursor modes) and NTP client; fetched as .debs (apt refuses to install into the pruned tree)
+if ! stage s6-extras; then
+    log extras
+    mounts
+    rm -f $R/etc/resolv.conf; cp /etc/resolv.conf $R/etc/resolv.conf
+    chroot $R apt-get update -qq
+    chroot $R sh -c 'cd /tmp && apt-get download ssvnc systemd-timesyncd && dpkg -i --force-depends /tmp/systemd-timesyncd_*.deb \
+        && mkdir -p /tmp/ssvnc-x && dpkg-deb -x /tmp/ssvnc_*.deb /tmp/ssvnc-x \
+        && install -D -m 755 /tmp/ssvnc-x/usr/lib/ssvnc/vncviewer /opt/ssvnc/ssvncviewer \
+        && install -D -m 644 /tmp/ssvnc-x/usr/share/doc/ssvnc/copyright /opt/ssvnc/copyright \
+        && rm -rf /tmp/*.deb /tmp/ssvnc-x'
+    chroot $R systemctl enable systemd-timesyncd.service
+    chroot $R apt-get clean
+    rm -rf $R/var/lib/apt/lists/* $R/var/cache/apt/* $R/usr/share/man $R/usr/share/doc/systemd-timesyncd 2>/dev/null || true
+    rm -f $R/etc/resolv.conf
+    ln -s ../run/NetworkManager/resolv.conf $R/etc/resolv.conf
+    done_stage s6-extras
 fi
 
 # always refresh our own files (cheap, idempotent) so edits to overlay/ end up in the image
@@ -895,7 +926,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib, Gdk  # noqa: E402
 
-VERSION = "1.4"
+VERSION = "1.5"
 
 
 def _wait_data():
@@ -912,6 +943,7 @@ PERSISTENT = _wait_data()
 DATA_DIR = "/data/kiosk" if PERSISTENT else os.path.expanduser("~/.config/kiosk")
 CONF = os.path.join(DATA_DIR, "config.json")
 CLIENT_LOG = "/tmp/kiosk-client.log"
+SSVNC = "/opt/ssvnc/ssvncviewer"   # TightVNC-based viewer: local scaling and cursor modes (TigerVNC has neither)
 VNC_PASS = "/tmp/kiosk-vncpass"
 # one saved NetworkManager profile per link type, not bound to an interface name
 # (interface names differ between computers the flash drive is moved to)
@@ -973,6 +1005,27 @@ TR = {
             "Ctrl+Alt+Shift+Пробел — показать/скрыть это окно\n"
             "Esc — вернуться к сеансу"),
         "version": "Версия {}",
+        "scale": "Масштаб изображения", "cursor": "Курсор мыши (VNC)", "vncclient": "Клиент VNC",
+        "sc_auto_vnc": "Авто (разрешение сервера под экран, если сервер умеет)",
+        "sc_fit": "Вписать в экран (с сохранением пропорций)", "sc_stretch": "Растянуть на весь экран",
+        "sc_original": "Как есть (1:1)",
+        "sc_z50": "Масштаб 50 %", "sc_z75": "Масштаб 75 %", "sc_z125": "Масштаб 125 %",
+        "sc_z150": "Масштаб 150 %", "sc_z200": "Масштаб 200 %",
+        "sc_auto_rdp": "Авто (разрешение под экран)",
+        "sc_stretch_rdp": "Растянуть: размер из профиля на весь экран",
+        "sc_original_rdp": "Как есть: размер из профиля, без масштаба",
+        "sc_ui125": "Крупнее интерфейс Windows 125 %", "sc_ui150": "Крупнее интерфейс Windows 150 %",
+        "sc_ui200": "Крупнее интерфейс Windows 200 %",
+        "cur_auto": "Авто (курсор сервера, точка если его нет)",
+        "cur_x11": "Форма курсора с сервера (курсор X11)",
+        "cur_remote": "Курсор рисует сервер (в картинке)",
+        "cur_arrow": "Локальная стрелка + курсор сервера",
+        "cl_auto": "Авто", "cl_tiger": "TigerVNC (TLS/RA2, несколько мониторов)",
+        "cl_ssvnc": "SSVNC (масштаб, выбор курсора; без TLS)",
+        "hint_tiger": "Клиент: TigerVNC.", "hint_ssvnc": "Клиент: SSVNC (масштабирование и режимы курсора; без шифрования TLS, только пароль VNC).",
+        "hint_noscale": "TigerVNC не масштабирует картинку: выберите «Авто» или «Как есть», либо клиент SSVNC.",
+        "log_btn": "Журнал и сведения о системе", "close": "Закрыть",
+        "status_authfail": "Ошибка входа: проверьте логин и пароль. Автоповтор отключён. {}",
     },
     "en": {
         "title": "Thin client",
@@ -1020,6 +1073,27 @@ TR = {
             "Ctrl+Alt+Shift+Space — show/hide this window\n"
             "Esc — back to the session"),
         "version": "Version {}",
+        "scale": "Image scaling", "cursor": "Mouse cursor (VNC)", "vncclient": "VNC client",
+        "sc_auto_vnc": "Auto (server resolution follows the screen if supported)",
+        "sc_fit": "Fit to screen (keep aspect ratio)", "sc_stretch": "Stretch to the whole screen",
+        "sc_original": "As is (1:1)",
+        "sc_z50": "Zoom 50 %", "sc_z75": "Zoom 75 %", "sc_z125": "Zoom 125 %",
+        "sc_z150": "Zoom 150 %", "sc_z200": "Zoom 200 %",
+        "sc_auto_rdp": "Auto (resolution follows the screen)",
+        "sc_stretch_rdp": "Stretch: profile size scaled to the whole screen",
+        "sc_original_rdp": "As is: profile size, no scaling",
+        "sc_ui125": "Larger Windows UI 125 %", "sc_ui150": "Larger Windows UI 150 %",
+        "sc_ui200": "Larger Windows UI 200 %",
+        "cur_auto": "Auto (server cursor, a dot if there is none)",
+        "cur_x11": "Cursor shape from the server (X11 cursor)",
+        "cur_remote": "Server draws the cursor (in the picture)",
+        "cur_arrow": "Local arrow + server cursor",
+        "cl_auto": "Auto", "cl_tiger": "TigerVNC (TLS/RA2, multi-monitor)",
+        "cl_ssvnc": "SSVNC (scaling, cursor modes; no TLS)",
+        "hint_tiger": "Client: TigerVNC.", "hint_ssvnc": "Client: SSVNC (scaling and cursor modes; no TLS encryption, VNC password only).",
+        "hint_noscale": "TigerVNC cannot scale the picture: pick “Auto” or “As is”, or the SSVNC client.",
+        "log_btn": "Log and system information", "close": "Close",
+        "status_authfail": "Login failed: check the user name and password. Auto-retry is off. {}",
     },
 }
 
@@ -1027,7 +1101,20 @@ DEFAULT_PROFILE = {
     "name": "", "proto": "rdp", "host": "", "port": "", "user": "", "password": "",
     "domain": "", "fullscreen": True, "multimon": False, "width": 1920, "height": 1080,
     "sound": True, "clipboard": True, "usb": False, "ignorecert": True, "extra": "",
+    "scale": "auto", "cursor": "auto", "vncclient": "auto",
 }
+
+# scale modes per protocol: (id, translation key)
+SCALES_VNC = [("auto", "sc_auto_vnc"), ("fit", "sc_fit"), ("stretch", "sc_stretch"), ("original", "sc_original"),
+              ("z50", "sc_z50"), ("z75", "sc_z75"), ("z125", "sc_z125"), ("z150", "sc_z150"), ("z200", "sc_z200")]
+SCALES_RDP = [("auto", "sc_auto_rdp"), ("stretch", "sc_stretch_rdp"), ("original", "sc_original_rdp"),
+              ("ui125", "sc_ui125"), ("ui150", "sc_ui150"), ("ui200", "sc_ui200")]
+CURSORS = [("auto", "cur_auto"), ("x11", "cur_x11"), ("remote", "cur_remote"), ("arrow", "cur_arrow")]
+VNC_CLIENTS = [("auto", "cl_auto"), ("tiger", "cl_tiger"), ("ssvnc", "cl_ssvnc")]
+# the client printed one of these: wrong login/password, do not hammer the server with retries (account lockout)
+AUTH_FAIL_RE = re.compile(r"(LOGON_FAILURE|ACCESS_DENIED|ACCOUNT_LOCKED|WRONG_PASSWORD|PASSWORD_EXPIRED|PASSWORD_MUST_CHANGE|"
+                          r"ACCOUNT_DISABLED|AUTHENTICATION_FAILED|Authentication (failed|failure)|"
+                          r"authentication failed|SecurityResult.*(failed|failure))", re.I)
 
 
 # ----------------------------------------------------------------- helpers
@@ -1044,17 +1131,72 @@ def nm_split(line):
     return [p.replace("\\:", ":").replace("\\\\", "\\") for p in re.split(r"(?<!\\):", line)]
 
 
-def vnc_obfuscate(password):
-    """VNC password file contents (DES with the fixed, bit-reversed key)."""
+def _vnc_des(password, data):
+    """DES-ECB with the VNC password as key (each key byte bit-reversed): the VNC auth response and password file."""
     from cryptography.hazmat.primitives.ciphers import Cipher, modes
     try:
         from cryptography.hazmat.decrepit.ciphers.algorithms import TripleDES
     except ImportError:
         from cryptography.hazmat.primitives.ciphers.algorithms import TripleDES
-    key = bytes(int("{:08b}".format(b)[::-1], 2) for b in (23, 82, 107, 6, 35, 78, 88, 7))
-    pw = password.encode("latin-1", "replace")[:8].ljust(8, b"\0")
+    key = bytes(int("{:08b}".format(b)[::-1], 2) for b in password.ljust(8, b"\0")[:8])
     enc = Cipher(TripleDES(key * 3), modes.ECB()).encryptor()
-    return enc.update(pw) + enc.finalize()
+    return enc.update(data) + enc.finalize()
+
+
+def vnc_obfuscate(password):
+    """VNC password file contents (DES with the fixed, bit-reversed key)."""
+    pw = password.encode("latin-1", "replace")[:8].ljust(8, b"\0")
+    return _vnc_des(bytes((23, 82, 107, 6, 35, 78, 88, 7)), pw)
+
+
+def rfb_probe(host, port, password, timeout=3.0):
+    """Ask a VNC server for its desktop size (RFB handshake only). Returns (w, h) or None."""
+    import struct
+
+    def recvn(sock, n):
+        buf = b""
+        while len(buf) < n:
+            chunk = sock.recv(n - len(buf))
+            if not chunk:
+                raise OSError("closed")
+            buf += chunk
+        return buf
+
+    s = None
+    try:
+        s = socket.create_connection((host, int(port) if port else 5900), timeout)
+        s.settimeout(timeout)
+        ver = recvn(s, 12)
+        if ver[:7] != b"RFB 003" or ver[8:11] == b"003":   # RFB 3.3 has no security type list: not supported here
+            return None
+        s.sendall(b"RFB 003.008\n")
+        n = recvn(s, 1)[0]
+        if n == 0:
+            return None
+        types = recvn(s, n)
+        if 1 in types:
+            s.sendall(b"\x01")
+        elif 2 in types and password:
+            s.sendall(b"\x02")
+            chal = recvn(s, 16)
+            pw = password.encode("latin-1", "replace")
+            s.sendall(_vnc_des(pw, chal))
+        else:
+            return None
+        if struct.unpack(">I", recvn(s, 4))[0] != 0:
+            return None
+        s.sendall(b"\x01")
+        w, h = struct.unpack(">HH", recvn(s, 24)[:4])
+        return (w, h) if w and h else None
+    except (OSError, ValueError, struct.error):
+        return None
+    finally:
+        if s is not None:
+            try:
+                s.close()
+            except OSError:
+                pass
+        time.sleep(0.2)
 
 
 def apply_keyboard(key):
@@ -1205,7 +1347,7 @@ class Kiosk:
         left.pack_start(row, False, False, 0)
         box.pack_start(left, False, False, 0)
 
-        g = Gtk.Grid(column_spacing=10, row_spacing=7)
+        g = Gtk.Grid(column_spacing=10, row_spacing=4)
         self.f = {}
 
         def add_row(r, key, widget):
@@ -1251,6 +1393,17 @@ class Kiosk:
         self.f["size_box"] = sz
         r += 1
         add_row(r, "extra", Gtk.Entry()); r += 1
+        for key, items in (("scale", []), ("cursor", CURSORS), ("vncclient", VNC_CLIENTS)):
+            cb = Gtk.ComboBoxText()
+            for ident, tkey in items:
+                cb.append(ident, self._(tkey))
+            cb.connect("changed", (lambda *a: self.on_proto_changed()) if key == "scale"
+                       else (lambda *a: self.update_vnc_hint()))
+            add_row(r, key, cb); r += 1
+        self.vnc_hint = Gtk.Label(xalign=0)
+        self.vnc_hint.set_line_wrap(True)
+        g.attach(self.vnc_hint, 1, r, 3, 1)
+        r += 1
 
         btns = Gtk.Box(spacing=8)
         self.f["boot"] = Gtk.CheckButton(label=self._("boot"))
@@ -1378,10 +1531,45 @@ class Kiosk:
         b2.connect("clicked", lambda *a: self.power("poweroff"))
         pw.pack_start(b1, False, False, 0)
         pw.pack_start(b2, False, False, 0)
+        b3 = Gtk.Button(label=self._("log_btn"))
+        b3.connect("clicked", lambda *a: self.show_log())
+        pw.pack_end(b3, False, False, 0)
         box.pack_start(Gtk.Label(label=self._("power"), xalign=0), False, False, 0)
         box.pack_start(pw, False, False, 0)
         box.pack_end(Gtk.Label(label=self._("version", VERSION), xalign=0), False, False, 0)
         return box
+
+    def system_info(self):
+        sw, sh = self.screen_size()
+        lines = ["Version: " + VERSION, "Kernel: " + os.uname().release,
+                 "Firmware: " + ("UEFI" if os.path.isdir("/sys/firmware/efi") else "BIOS"),
+                 "Screen: %dx%d" % (sw, sh),
+                 "Root: " + (run(["findmnt", "-rn", "-o", "SOURCE", "/media/root-ro"], 3)[1].strip() or "?"),
+                 "Data: " + (run(["findmnt", "-rn", "-o", "SOURCE", "/data"], 3)[1].strip() or "not mounted"),
+                 "Time: " + time.strftime("%Y-%m-%d %H:%M:%S %Z"),
+                 "NTP synchronized: " + run(["timedatectl", "show", "-p", "NTPSynchronized", "--value"], 3)[1].strip(),
+                 "", run(["ip", "-br", "addr"], 3)[1].strip(), "", "--- client log ---"]
+        try:
+            with open(CLIENT_LOG, "r", errors="replace") as f:
+                lines += [ln for ln in f.read().splitlines()[-60:]]
+        except OSError:
+            lines.append("(no client log yet)")
+        return "\n".join(lines)
+
+    def show_log(self):
+        d = Gtk.Dialog(title=self._("log_btn"), transient_for=self.win, modal=True)
+        d.add_button(self._("close"), Gtk.ResponseType.CLOSE)
+        tv = Gtk.TextView()
+        tv.set_editable(False)
+        tv.set_monospace(True)
+        tv.get_buffer().set_text(self.system_info())
+        sw = Gtk.ScrolledWindow()
+        sw.set_size_request(900, 520)
+        sw.add(tv)
+        d.get_content_area().add(sw)
+        d.show_all()
+        d.run()
+        d.destroy()
 
     # ------------------------------------------------------ window control
     def show_window(self, tab=None):
@@ -1460,6 +1648,9 @@ class Kiosk:
                 self.hide_window()
             else:
                 self.show_window(0)
+        elif cmd == "reload":   # re-read config.json (edited by hand or by a script)
+            self.cfg.load()
+            self.reload_profiles()
         elif cmd == "toggle":
             if self.win.get_visible() and self.running():
                 self.hide_window()
@@ -1512,6 +1703,9 @@ class Kiosk:
         f["width"].set_value(int(p.get("width", 1920)))
         f["height"].set_value(int(p.get("height", 1080)))
         f["boot"].set_active(is_default)
+        self.rebuild_scale(p.get("proto", "rdp"), p.get("scale", "auto"))
+        f["cursor"].set_active_id(p.get("cursor", "auto") if p.get("cursor", "auto") in dict(CURSORS) else "auto")
+        f["vncclient"].set_active_id(p.get("vncclient", "auto") if p.get("vncclient", "auto") in dict(VNC_CLIENTS) else "auto")
         self.loading_form = False
         self.on_proto_changed()
 
@@ -1525,6 +1719,9 @@ class Kiosk:
             p[key] = f[key].get_active()
         p["width"] = int(f["width"].get_value())
         p["height"] = int(f["height"].get_value())
+        p["scale"] = f["scale"].get_active_id() or "auto"
+        p["cursor"] = f["cursor"].get_active_id() or "auto"
+        p["vncclient"] = f["vncclient"].get_active_id() or "auto"
         if not p["name"]:
             p["name"] = p["host"]
         return p
@@ -1539,9 +1736,47 @@ class Kiosk:
             if lab:
                 lab.set_sensitive(rdp)
         fs = self.f["fullscreen"].get_active()
-        self.f["size_box"].set_sensitive(not fs)
-        self.f["size_label"].set_sensitive(not fs)
+        proto = "rdp" if rdp else "vnc"
+        if getattr(self, "scale_proto", None) != proto:
+            self.rebuild_scale(proto, self.f["scale"].get_active_id() or "auto")
+        # the picture size is the profile size when not fullscreen, or for scaled RDP modes
+        scale = self.f["scale"].get_active_id() or "auto"
+        size_used = (not fs) or (rdp and scale in ("stretch", "original"))
+        self.f["size_box"].set_sensitive(size_used)
+        self.f["size_label"].set_sensitive(size_used)
         self.f["multimon"].set_sensitive(fs)
+        for key in ("cursor", "vncclient"):
+            self.f[key].set_sensitive(not rdp)
+            self.f[key + "_label"].set_sensitive(not rdp)
+        self.update_vnc_hint()
+
+    def rebuild_scale(self, proto, keep="auto"):
+        """The list of scaling modes depends on the protocol."""
+        cb = self.f["scale"]
+        was = self.loading_form
+        self.loading_form = True
+        cb.remove_all()
+        for ident, tkey in (SCALES_RDP if proto == "rdp" else SCALES_VNC):
+            cb.append(ident, self._(tkey))
+        if not cb.set_active_id(keep):
+            cb.set_active_id("auto")
+        self.scale_proto = proto
+        self.loading_form = was
+
+    def update_vnc_hint(self):
+        if self.loading_form or "vnc_hint" not in self.__dict__:
+            return
+        if self.f["proto"].get_active_id() != "vnc":
+            self.vnc_hint.set_text("")
+            return
+        p = {"proto": "vnc", "scale": self.f["scale"].get_active_id() or "auto",
+             "cursor": self.f["cursor"].get_active_id() or "auto",
+             "vncclient": self.f["vncclient"].get_active_id() or "auto"}
+        eng = self.vnc_engine(p)
+        text = self._("hint_ssvnc" if eng == "ssvnc" else "hint_tiger")
+        if p["vncclient"] == "tiger" and (p["scale"] not in ("auto", "original") or p["cursor"] != "auto"):
+            text = self._("hint_noscale")
+        self.vnc_hint.set_markup("<small>%s</small>" % GLib.markup_escape_text(text))
 
     def save_form(self, notify=False):
         p = self.read_form()
@@ -1651,10 +1886,66 @@ class Kiosk:
         d.destroy()
         return res
 
-    def build_cmd(self, p):
-        host = p["host"].strip()
-        port = p.get("port", "").strip()
-        if p["proto"] == "vnc":
+    def screen_size(self):
+        """Size of the primary monitor in pixels."""
+        try:
+            disp = Gdk.Display.get_default()
+            mon = disp.get_primary_monitor() or disp.get_monitor(0)
+            g = mon.get_geometry()
+            return g.width, g.height
+        except Exception:  # noqa: BLE001
+            return 1920, 1080
+
+    def vnc_engine(self, p):
+        """TigerVNC by default; SSVNC when the profile needs local scaling or another cursor mode."""
+        want = p.get("vncclient", "auto")
+        if want in ("tiger", "ssvnc"):
+            return want if want == "tiger" or os.path.exists(SSVNC) else "tiger"
+        needs = p.get("scale", "auto") not in ("auto", "original") or p.get("cursor", "auto") != "auto"
+        return "ssvnc" if needs and os.path.exists(SSVNC) else "tiger"
+
+    def write_vnc_pass(self, password):
+        fd = os.open(VNC_PASS, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "wb") as f:
+            f.write(vnc_obfuscate(password))
+
+    def ssvnc_scale(self, p, host, port):
+        """-scale argument for SSVNC: it can only scale by a ratio or to a fixed size, so ask the server for its size."""
+        mode = p.get("scale", "auto")
+        if mode == "original":
+            return None
+        if mode.startswith("z") and mode[1:].isdigit():
+            return "%.4f" % (int(mode[1:]) / 100.0)
+        if p.get("fullscreen", True):
+            sw, sh = self.screen_size()
+        else:
+            sw, sh = int(p.get("width", 1280)), int(p.get("height", 720))
+        if mode == "stretch":
+            return "%dx%d" % (sw, sh)
+        size = rfb_probe(host, port, p.get("password", ""))    # "fit" / "auto": needs the remote desktop size
+        if not size:
+            return None
+        return "%.4f" % min(sw / size[0], sh / size[1])
+
+    def build_vnc_cmd(self, p, host, port):
+        engine = self.vnc_engine(p)
+        if engine == "ssvnc":
+            cmd = [SSVNC, "-shared", "-noraiseonbeep", "-nograbkbd"]   # no keyboard grab: F12 and Ctrl+Alt+Shift hotkeys must reach openbox
+            if p.get("fullscreen", True):
+                cmd.append("-fullscreen")
+            else:
+                cmd += ["-geometry", "%dx%d+0+0" % (int(p.get("width", 1280)), int(p.get("height", 720)))]
+            sc = self.ssvnc_scale(p, host, port)
+            if sc:
+                cmd += ["-scale", sc]
+            cur = p.get("cursor", "auto")
+            if cur == "remote":
+                cmd.append("-nocursorshape")
+            elif cur == "arrow":
+                cmd += ["-nocursorshape", "-x11cursor"]
+            elif cur == "x11":
+                cmd.append("-x11cursor")
+        else:
             cmd = ["xtigervncviewer", "-Shared"]
             if p.get("fullscreen", True):
                 cmd.append("-FullScreen")
@@ -1663,13 +1954,21 @@ class Kiosk:
             # FullscreenSystemKeys=0: do not grab the keyboard, so the Ctrl+Alt+Shift hotkeys keep working
             # DotWhenNoCursor=1: some servers send an invisible cursor; show a dot so the pointer is never lost
             cmd += ["-MenuKey", "none", "-ReconnectOnError=0", "-FullscreenSystemKeys=0", "-DotWhenNoCursor=1"]
-            if p.get("password"):
-                with open(VNC_PASS, "wb") as f:
-                    f.write(vnc_obfuscate(p["password"]))
-                os.chmod(VNC_PASS, 0o600)
-                cmd += ["-passwd", VNC_PASS]
-            cmd.append("{}::{}".format(host, port) if port else host)
-            return cmd
+            if p.get("scale", "auto") == "original":
+                cmd.append("-RemoteResize=0")        # keep the server resolution, no resize request
+            if not p.get("clipboard", True):
+                cmd += ["-SendClipboard=0", "-AcceptClipboard=0", "-SendPrimary=0", "-SetPrimary=0"]
+        if p.get("password"):
+            self.write_vnc_pass(p["password"])
+            cmd += ["-passwd", VNC_PASS]
+        cmd.append("{}::{}".format(host, port) if port else host)
+        return cmd
+
+    def build_cmd(self, p):
+        host = p["host"].strip()
+        port = p.get("port", "").strip()
+        if p["proto"] == "vnc":
+            return self.build_vnc_cmd(p, host, port)
         target = "{}:{}".format(host, port) if port else host
         cmd = ["xfreerdp3", "/v:" + target]
         if p.get("user"):
@@ -1678,12 +1977,21 @@ class Kiosk:
             cmd.append("/p:" + p["password"])
         if p.get("domain"):
             cmd.append("/d:" + p["domain"])
+        scale = p.get("scale", "auto")
+        fixed = scale in ("stretch", "original")
+        size = "/size:{}x{}".format(p.get("width", 1280), p.get("height", 720))
         if p.get("fullscreen", True):
             cmd.append("/f")
             if p.get("multimon"):
                 cmd.append("/multimon")
+            if fixed:
+                cmd.append(size)
         else:
-            cmd.append("/size:{}x{}".format(p.get("width", 1280), p.get("height", 720)))
+            cmd.append(size)
+        if scale == "stretch":
+            cmd.append("/smart-sizing")                  # scale the fixed-size desktop to the window / screen
+        elif scale.startswith("ui") and scale[2:].isdigit():
+            cmd.append("/scale-desktop:" + scale[2:])    # bigger Windows UI (DPI scaling)
         cmd.append("+clipboard" if p.get("clipboard", True) else "-clipboard")
         if p.get("sound", True):
             cmd += ["/sound:sys:pulse", "/microphone:sys:pulse"]
@@ -1691,8 +1999,9 @@ class Kiosk:
             cmd.append("/usb:auto")
         if p.get("ignorecert", True):
             cmd.append("/cert:ignore")
-        cmd += ["-grab-keyboard", "+auto-reconnect", "/auto-reconnect-max-retries:3",
-                "/dynamic-resolution", "/network:auto"]
+        cmd += ["-grab-keyboard", "+auto-reconnect", "/auto-reconnect-max-retries:3", "/network:auto"]
+        if not fixed:
+            cmd.append("/dynamic-resolution")
         if p.get("extra"):
             import shlex
             cmd += shlex.split(p["extra"])
@@ -1793,6 +2102,14 @@ class Kiosk:
         except OSError:
             pass
         self.show_window(0)
+        try:
+            with open(CLIENT_LOG, "r", errors="replace") as f:
+                authfail = bool(AUTH_FAIL_RE.search(f.read()))
+        except OSError:
+            authfail = False
+        if authfail:   # wrong password: retrying every few seconds could lock the account out
+            self.set_status(self._("status_authfail", ""))
+            return
         self.set_status(self._("status_ended", code, tail))
         if self.cfg.data.get("autoreconnect", True) and not self.interacted:
             self.retry_left = 10 if time.time() - self.started < 15 else 3
@@ -2091,6 +2408,10 @@ __KIT_EOF__
 mkdir -p "$DEST/overlay/usr/local/sbin"
 cat > "$DEST/overlay/usr/local/sbin/kiosk-growdata" <<'__KIT_EOF__'
 #!/bin/sh
+# Unique host name per computer (DHCP servers and routers otherwise see many machines called "kiosk")
+MAC=$(cat /sys/class/net/[ew]*/address 2>/dev/null | head -n 1 | tr -d ':')
+[ -n "$MAC" ] && hostname "thin-$(echo "$MAC" | cut -c7-12)" 2>/dev/null
+
 # Prepare persistent storage: grow the last (data) partition to fill the device,
 # check/grow its filesystem, mount it on /data and bind NetworkManager profiles from it.
 # Several KIOSKDATA partitions can be present (flash drive left plugged in after installing to the PC):
@@ -2566,12 +2887,12 @@ wait
 __KIT_EOF__
 echo "== verifying unpacked files"
 cat > "$DEST/.manifest.sha256" <<'__KIT_EOF__'
-a863c02fb557bcb4d3ae07b261693424700bd6709ff243c0ce205dac908717fc  README.md
+f4b103647855aa7053934355e698e9e3598f263430cb403499d02b42b45446a0  README.md
 8d37e3a11f5e447201cef7a58b14e2afc8c2b121a1aae8d901cc5bc61e22a4c5  boot/early.cfg
 8df535eb5edf71bfccd5a046562cac8a7939f09292da25a7bffe13d4fea10b6d  boot/grub.cfg
 dd028468a5d7a13cf9e7776142400c8c110ded810d2b6f6d703eb6473d61fb31  build-all.sh
 08f9ac29be737ac8912b27f37be6d4fdee81e347e849041bd8bc40d46a41533a  build-image.sh
-47415f6c65e88a9c20d565a408d0a232877e39aab0875b2533229c214330e6d6  build-rootfs.sh
+42e99ac16387aee0ab9e72aebacf8327cfe896e93139f2a0d5c62718a15fef2e  build-rootfs.sh
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  overlay/etc/NetworkManager/conf.d/10-dns-resolved.conf
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  overlay/etc/NetworkManager/conf.d/10-globally-managed-devices.conf
 daecdafe66e474402395c4fb23eb20bb1db1bf45fc8a1da89d286a57570a869e  overlay/etc/NetworkManager/conf.d/kiosk.conf
@@ -2589,10 +2910,10 @@ b86aaef6227a5824e04d89c3ce772d8479fadd5e6a1e13d908cce627bfd5f7cc  overlay/etc/sy
 9fbf7d8db6455969f2e62cba6087cdf04f5170f6553fa5bf34ea4ad3bcf19769  overlay/etc/systemd/system/kiosk.service
 6a2a46a868a19fdbab9db2c85831059c428cfabc94ad9b461b8a6c4a4f07c6b4  overlay/etc/udev/rules.d/90-kiosk-usb.rules
 1f17b5c77234ae4a3fd96e06cb281da61a6293b61740e927765bd5e47d2fe266  overlay/opt/kiosk/installer.py
-67828ccb3e088b5704a1dcd0c9ca1649321e7a2c9cdd19a06757356093ee632b  overlay/opt/kiosk/kiosk.py
+59b18b2923bbff3fc2588823f06c363dc712dcc76bab6d8f5d9da72976cf89b4  overlay/opt/kiosk/kiosk.py
 a903543768178e611125db6cdf98020817466892fb4da56a4b2b6df2f8a4cba3  overlay/opt/kiosk/rc.xml
 a5ca420724b24e64d6e864d810f188d2691d4e7998475a4d9ffc23fa385245fd  overlay/opt/kiosk/session.sh
-48d4190cc4151b85b860e084d099737b543013d80484a284160a0bd4740c4fce  overlay/usr/local/sbin/kiosk-growdata
+d4d40b3b3e3b1aab78c7ed02ab05398c6a91db8a94d9a13e4e6dd2a370a25918  overlay/usr/local/sbin/kiosk-growdata
 46b7264725c9a1b41bc8abc91d82bca985b91321ea07bc8334d210f6c829ae6d  overlay/usr/local/sbin/kiosk-install
 4a7733f237ed0ce1f06686ae02be449c15fcbfabc6c7a7123ea950c76660d837  test/mk-test-image.sh
 e76eb83ffb324ff644b69fb65d8ab6cec97d35369d2a1056bc9513a397b5360a  test/qmon.py

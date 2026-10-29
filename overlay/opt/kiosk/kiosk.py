@@ -31,7 +31,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib, Gdk  # noqa: E402
 
-VERSION = "1.4"
+VERSION = "1.5"
 
 
 def _wait_data():
@@ -48,6 +48,7 @@ PERSISTENT = _wait_data()
 DATA_DIR = "/data/kiosk" if PERSISTENT else os.path.expanduser("~/.config/kiosk")
 CONF = os.path.join(DATA_DIR, "config.json")
 CLIENT_LOG = "/tmp/kiosk-client.log"
+SSVNC = "/opt/ssvnc/ssvncviewer"   # TightVNC-based viewer: local scaling and cursor modes (TigerVNC has neither)
 VNC_PASS = "/tmp/kiosk-vncpass"
 # one saved NetworkManager profile per link type, not bound to an interface name
 # (interface names differ between computers the flash drive is moved to)
@@ -109,6 +110,27 @@ TR = {
             "Ctrl+Alt+Shift+Пробел — показать/скрыть это окно\n"
             "Esc — вернуться к сеансу"),
         "version": "Версия {}",
+        "scale": "Масштаб изображения", "cursor": "Курсор мыши (VNC)", "vncclient": "Клиент VNC",
+        "sc_auto_vnc": "Авто (разрешение сервера под экран, если сервер умеет)",
+        "sc_fit": "Вписать в экран (с сохранением пропорций)", "sc_stretch": "Растянуть на весь экран",
+        "sc_original": "Как есть (1:1)",
+        "sc_z50": "Масштаб 50 %", "sc_z75": "Масштаб 75 %", "sc_z125": "Масштаб 125 %",
+        "sc_z150": "Масштаб 150 %", "sc_z200": "Масштаб 200 %",
+        "sc_auto_rdp": "Авто (разрешение под экран)",
+        "sc_stretch_rdp": "Растянуть: размер из профиля на весь экран",
+        "sc_original_rdp": "Как есть: размер из профиля, без масштаба",
+        "sc_ui125": "Крупнее интерфейс Windows 125 %", "sc_ui150": "Крупнее интерфейс Windows 150 %",
+        "sc_ui200": "Крупнее интерфейс Windows 200 %",
+        "cur_auto": "Авто (курсор сервера, точка если его нет)",
+        "cur_x11": "Форма курсора с сервера (курсор X11)",
+        "cur_remote": "Курсор рисует сервер (в картинке)",
+        "cur_arrow": "Локальная стрелка + курсор сервера",
+        "cl_auto": "Авто", "cl_tiger": "TigerVNC (TLS/RA2, несколько мониторов)",
+        "cl_ssvnc": "SSVNC (масштаб, выбор курсора; без TLS)",
+        "hint_tiger": "Клиент: TigerVNC.", "hint_ssvnc": "Клиент: SSVNC (масштабирование и режимы курсора; без шифрования TLS, только пароль VNC).",
+        "hint_noscale": "TigerVNC не масштабирует картинку: выберите «Авто» или «Как есть», либо клиент SSVNC.",
+        "log_btn": "Журнал и сведения о системе", "close": "Закрыть",
+        "status_authfail": "Ошибка входа: проверьте логин и пароль. Автоповтор отключён. {}",
     },
     "en": {
         "title": "Thin client",
@@ -156,6 +178,27 @@ TR = {
             "Ctrl+Alt+Shift+Space — show/hide this window\n"
             "Esc — back to the session"),
         "version": "Version {}",
+        "scale": "Image scaling", "cursor": "Mouse cursor (VNC)", "vncclient": "VNC client",
+        "sc_auto_vnc": "Auto (server resolution follows the screen if supported)",
+        "sc_fit": "Fit to screen (keep aspect ratio)", "sc_stretch": "Stretch to the whole screen",
+        "sc_original": "As is (1:1)",
+        "sc_z50": "Zoom 50 %", "sc_z75": "Zoom 75 %", "sc_z125": "Zoom 125 %",
+        "sc_z150": "Zoom 150 %", "sc_z200": "Zoom 200 %",
+        "sc_auto_rdp": "Auto (resolution follows the screen)",
+        "sc_stretch_rdp": "Stretch: profile size scaled to the whole screen",
+        "sc_original_rdp": "As is: profile size, no scaling",
+        "sc_ui125": "Larger Windows UI 125 %", "sc_ui150": "Larger Windows UI 150 %",
+        "sc_ui200": "Larger Windows UI 200 %",
+        "cur_auto": "Auto (server cursor, a dot if there is none)",
+        "cur_x11": "Cursor shape from the server (X11 cursor)",
+        "cur_remote": "Server draws the cursor (in the picture)",
+        "cur_arrow": "Local arrow + server cursor",
+        "cl_auto": "Auto", "cl_tiger": "TigerVNC (TLS/RA2, multi-monitor)",
+        "cl_ssvnc": "SSVNC (scaling, cursor modes; no TLS)",
+        "hint_tiger": "Client: TigerVNC.", "hint_ssvnc": "Client: SSVNC (scaling and cursor modes; no TLS encryption, VNC password only).",
+        "hint_noscale": "TigerVNC cannot scale the picture: pick “Auto” or “As is”, or the SSVNC client.",
+        "log_btn": "Log and system information", "close": "Close",
+        "status_authfail": "Login failed: check the user name and password. Auto-retry is off. {}",
     },
 }
 
@@ -163,7 +206,20 @@ DEFAULT_PROFILE = {
     "name": "", "proto": "rdp", "host": "", "port": "", "user": "", "password": "",
     "domain": "", "fullscreen": True, "multimon": False, "width": 1920, "height": 1080,
     "sound": True, "clipboard": True, "usb": False, "ignorecert": True, "extra": "",
+    "scale": "auto", "cursor": "auto", "vncclient": "auto",
 }
+
+# scale modes per protocol: (id, translation key)
+SCALES_VNC = [("auto", "sc_auto_vnc"), ("fit", "sc_fit"), ("stretch", "sc_stretch"), ("original", "sc_original"),
+              ("z50", "sc_z50"), ("z75", "sc_z75"), ("z125", "sc_z125"), ("z150", "sc_z150"), ("z200", "sc_z200")]
+SCALES_RDP = [("auto", "sc_auto_rdp"), ("stretch", "sc_stretch_rdp"), ("original", "sc_original_rdp"),
+              ("ui125", "sc_ui125"), ("ui150", "sc_ui150"), ("ui200", "sc_ui200")]
+CURSORS = [("auto", "cur_auto"), ("x11", "cur_x11"), ("remote", "cur_remote"), ("arrow", "cur_arrow")]
+VNC_CLIENTS = [("auto", "cl_auto"), ("tiger", "cl_tiger"), ("ssvnc", "cl_ssvnc")]
+# the client printed one of these: wrong login/password, do not hammer the server with retries (account lockout)
+AUTH_FAIL_RE = re.compile(r"(LOGON_FAILURE|ACCESS_DENIED|ACCOUNT_LOCKED|WRONG_PASSWORD|PASSWORD_EXPIRED|PASSWORD_MUST_CHANGE|"
+                          r"ACCOUNT_DISABLED|AUTHENTICATION_FAILED|Authentication (failed|failure)|"
+                          r"authentication failed|SecurityResult.*(failed|failure))", re.I)
 
 
 # ----------------------------------------------------------------- helpers
@@ -180,17 +236,72 @@ def nm_split(line):
     return [p.replace("\\:", ":").replace("\\\\", "\\") for p in re.split(r"(?<!\\):", line)]
 
 
-def vnc_obfuscate(password):
-    """VNC password file contents (DES with the fixed, bit-reversed key)."""
+def _vnc_des(password, data):
+    """DES-ECB with the VNC password as key (each key byte bit-reversed): the VNC auth response and password file."""
     from cryptography.hazmat.primitives.ciphers import Cipher, modes
     try:
         from cryptography.hazmat.decrepit.ciphers.algorithms import TripleDES
     except ImportError:
         from cryptography.hazmat.primitives.ciphers.algorithms import TripleDES
-    key = bytes(int("{:08b}".format(b)[::-1], 2) for b in (23, 82, 107, 6, 35, 78, 88, 7))
-    pw = password.encode("latin-1", "replace")[:8].ljust(8, b"\0")
+    key = bytes(int("{:08b}".format(b)[::-1], 2) for b in password.ljust(8, b"\0")[:8])
     enc = Cipher(TripleDES(key * 3), modes.ECB()).encryptor()
-    return enc.update(pw) + enc.finalize()
+    return enc.update(data) + enc.finalize()
+
+
+def vnc_obfuscate(password):
+    """VNC password file contents (DES with the fixed, bit-reversed key)."""
+    pw = password.encode("latin-1", "replace")[:8].ljust(8, b"\0")
+    return _vnc_des(bytes((23, 82, 107, 6, 35, 78, 88, 7)), pw)
+
+
+def rfb_probe(host, port, password, timeout=3.0):
+    """Ask a VNC server for its desktop size (RFB handshake only). Returns (w, h) or None."""
+    import struct
+
+    def recvn(sock, n):
+        buf = b""
+        while len(buf) < n:
+            chunk = sock.recv(n - len(buf))
+            if not chunk:
+                raise OSError("closed")
+            buf += chunk
+        return buf
+
+    s = None
+    try:
+        s = socket.create_connection((host, int(port) if port else 5900), timeout)
+        s.settimeout(timeout)
+        ver = recvn(s, 12)
+        if ver[:7] != b"RFB 003" or ver[8:11] == b"003":   # RFB 3.3 has no security type list: not supported here
+            return None
+        s.sendall(b"RFB 003.008\n")
+        n = recvn(s, 1)[0]
+        if n == 0:
+            return None
+        types = recvn(s, n)
+        if 1 in types:
+            s.sendall(b"\x01")
+        elif 2 in types and password:
+            s.sendall(b"\x02")
+            chal = recvn(s, 16)
+            pw = password.encode("latin-1", "replace")
+            s.sendall(_vnc_des(pw, chal))
+        else:
+            return None
+        if struct.unpack(">I", recvn(s, 4))[0] != 0:
+            return None
+        s.sendall(b"\x01")
+        w, h = struct.unpack(">HH", recvn(s, 24)[:4])
+        return (w, h) if w and h else None
+    except (OSError, ValueError, struct.error):
+        return None
+    finally:
+        if s is not None:
+            try:
+                s.close()
+            except OSError:
+                pass
+        time.sleep(0.2)
 
 
 def apply_keyboard(key):
@@ -341,7 +452,7 @@ class Kiosk:
         left.pack_start(row, False, False, 0)
         box.pack_start(left, False, False, 0)
 
-        g = Gtk.Grid(column_spacing=10, row_spacing=7)
+        g = Gtk.Grid(column_spacing=10, row_spacing=4)
         self.f = {}
 
         def add_row(r, key, widget):
@@ -387,6 +498,17 @@ class Kiosk:
         self.f["size_box"] = sz
         r += 1
         add_row(r, "extra", Gtk.Entry()); r += 1
+        for key, items in (("scale", []), ("cursor", CURSORS), ("vncclient", VNC_CLIENTS)):
+            cb = Gtk.ComboBoxText()
+            for ident, tkey in items:
+                cb.append(ident, self._(tkey))
+            cb.connect("changed", (lambda *a: self.on_proto_changed()) if key == "scale"
+                       else (lambda *a: self.update_vnc_hint()))
+            add_row(r, key, cb); r += 1
+        self.vnc_hint = Gtk.Label(xalign=0)
+        self.vnc_hint.set_line_wrap(True)
+        g.attach(self.vnc_hint, 1, r, 3, 1)
+        r += 1
 
         btns = Gtk.Box(spacing=8)
         self.f["boot"] = Gtk.CheckButton(label=self._("boot"))
@@ -514,10 +636,45 @@ class Kiosk:
         b2.connect("clicked", lambda *a: self.power("poweroff"))
         pw.pack_start(b1, False, False, 0)
         pw.pack_start(b2, False, False, 0)
+        b3 = Gtk.Button(label=self._("log_btn"))
+        b3.connect("clicked", lambda *a: self.show_log())
+        pw.pack_end(b3, False, False, 0)
         box.pack_start(Gtk.Label(label=self._("power"), xalign=0), False, False, 0)
         box.pack_start(pw, False, False, 0)
         box.pack_end(Gtk.Label(label=self._("version", VERSION), xalign=0), False, False, 0)
         return box
+
+    def system_info(self):
+        sw, sh = self.screen_size()
+        lines = ["Version: " + VERSION, "Kernel: " + os.uname().release,
+                 "Firmware: " + ("UEFI" if os.path.isdir("/sys/firmware/efi") else "BIOS"),
+                 "Screen: %dx%d" % (sw, sh),
+                 "Root: " + (run(["findmnt", "-rn", "-o", "SOURCE", "/media/root-ro"], 3)[1].strip() or "?"),
+                 "Data: " + (run(["findmnt", "-rn", "-o", "SOURCE", "/data"], 3)[1].strip() or "not mounted"),
+                 "Time: " + time.strftime("%Y-%m-%d %H:%M:%S %Z"),
+                 "NTP synchronized: " + run(["timedatectl", "show", "-p", "NTPSynchronized", "--value"], 3)[1].strip(),
+                 "", run(["ip", "-br", "addr"], 3)[1].strip(), "", "--- client log ---"]
+        try:
+            with open(CLIENT_LOG, "r", errors="replace") as f:
+                lines += [ln for ln in f.read().splitlines()[-60:]]
+        except OSError:
+            lines.append("(no client log yet)")
+        return "\n".join(lines)
+
+    def show_log(self):
+        d = Gtk.Dialog(title=self._("log_btn"), transient_for=self.win, modal=True)
+        d.add_button(self._("close"), Gtk.ResponseType.CLOSE)
+        tv = Gtk.TextView()
+        tv.set_editable(False)
+        tv.set_monospace(True)
+        tv.get_buffer().set_text(self.system_info())
+        sw = Gtk.ScrolledWindow()
+        sw.set_size_request(900, 520)
+        sw.add(tv)
+        d.get_content_area().add(sw)
+        d.show_all()
+        d.run()
+        d.destroy()
 
     # ------------------------------------------------------ window control
     def show_window(self, tab=None):
@@ -596,6 +753,9 @@ class Kiosk:
                 self.hide_window()
             else:
                 self.show_window(0)
+        elif cmd == "reload":   # re-read config.json (edited by hand or by a script)
+            self.cfg.load()
+            self.reload_profiles()
         elif cmd == "toggle":
             if self.win.get_visible() and self.running():
                 self.hide_window()
@@ -648,6 +808,9 @@ class Kiosk:
         f["width"].set_value(int(p.get("width", 1920)))
         f["height"].set_value(int(p.get("height", 1080)))
         f["boot"].set_active(is_default)
+        self.rebuild_scale(p.get("proto", "rdp"), p.get("scale", "auto"))
+        f["cursor"].set_active_id(p.get("cursor", "auto") if p.get("cursor", "auto") in dict(CURSORS) else "auto")
+        f["vncclient"].set_active_id(p.get("vncclient", "auto") if p.get("vncclient", "auto") in dict(VNC_CLIENTS) else "auto")
         self.loading_form = False
         self.on_proto_changed()
 
@@ -661,6 +824,9 @@ class Kiosk:
             p[key] = f[key].get_active()
         p["width"] = int(f["width"].get_value())
         p["height"] = int(f["height"].get_value())
+        p["scale"] = f["scale"].get_active_id() or "auto"
+        p["cursor"] = f["cursor"].get_active_id() or "auto"
+        p["vncclient"] = f["vncclient"].get_active_id() or "auto"
         if not p["name"]:
             p["name"] = p["host"]
         return p
@@ -675,9 +841,47 @@ class Kiosk:
             if lab:
                 lab.set_sensitive(rdp)
         fs = self.f["fullscreen"].get_active()
-        self.f["size_box"].set_sensitive(not fs)
-        self.f["size_label"].set_sensitive(not fs)
+        proto = "rdp" if rdp else "vnc"
+        if getattr(self, "scale_proto", None) != proto:
+            self.rebuild_scale(proto, self.f["scale"].get_active_id() or "auto")
+        # the picture size is the profile size when not fullscreen, or for scaled RDP modes
+        scale = self.f["scale"].get_active_id() or "auto"
+        size_used = (not fs) or (rdp and scale in ("stretch", "original"))
+        self.f["size_box"].set_sensitive(size_used)
+        self.f["size_label"].set_sensitive(size_used)
         self.f["multimon"].set_sensitive(fs)
+        for key in ("cursor", "vncclient"):
+            self.f[key].set_sensitive(not rdp)
+            self.f[key + "_label"].set_sensitive(not rdp)
+        self.update_vnc_hint()
+
+    def rebuild_scale(self, proto, keep="auto"):
+        """The list of scaling modes depends on the protocol."""
+        cb = self.f["scale"]
+        was = self.loading_form
+        self.loading_form = True
+        cb.remove_all()
+        for ident, tkey in (SCALES_RDP if proto == "rdp" else SCALES_VNC):
+            cb.append(ident, self._(tkey))
+        if not cb.set_active_id(keep):
+            cb.set_active_id("auto")
+        self.scale_proto = proto
+        self.loading_form = was
+
+    def update_vnc_hint(self):
+        if self.loading_form or "vnc_hint" not in self.__dict__:
+            return
+        if self.f["proto"].get_active_id() != "vnc":
+            self.vnc_hint.set_text("")
+            return
+        p = {"proto": "vnc", "scale": self.f["scale"].get_active_id() or "auto",
+             "cursor": self.f["cursor"].get_active_id() or "auto",
+             "vncclient": self.f["vncclient"].get_active_id() or "auto"}
+        eng = self.vnc_engine(p)
+        text = self._("hint_ssvnc" if eng == "ssvnc" else "hint_tiger")
+        if p["vncclient"] == "tiger" and (p["scale"] not in ("auto", "original") or p["cursor"] != "auto"):
+            text = self._("hint_noscale")
+        self.vnc_hint.set_markup("<small>%s</small>" % GLib.markup_escape_text(text))
 
     def save_form(self, notify=False):
         p = self.read_form()
@@ -787,10 +991,66 @@ class Kiosk:
         d.destroy()
         return res
 
-    def build_cmd(self, p):
-        host = p["host"].strip()
-        port = p.get("port", "").strip()
-        if p["proto"] == "vnc":
+    def screen_size(self):
+        """Size of the primary monitor in pixels."""
+        try:
+            disp = Gdk.Display.get_default()
+            mon = disp.get_primary_monitor() or disp.get_monitor(0)
+            g = mon.get_geometry()
+            return g.width, g.height
+        except Exception:  # noqa: BLE001
+            return 1920, 1080
+
+    def vnc_engine(self, p):
+        """TigerVNC by default; SSVNC when the profile needs local scaling or another cursor mode."""
+        want = p.get("vncclient", "auto")
+        if want in ("tiger", "ssvnc"):
+            return want if want == "tiger" or os.path.exists(SSVNC) else "tiger"
+        needs = p.get("scale", "auto") not in ("auto", "original") or p.get("cursor", "auto") != "auto"
+        return "ssvnc" if needs and os.path.exists(SSVNC) else "tiger"
+
+    def write_vnc_pass(self, password):
+        fd = os.open(VNC_PASS, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "wb") as f:
+            f.write(vnc_obfuscate(password))
+
+    def ssvnc_scale(self, p, host, port):
+        """-scale argument for SSVNC: it can only scale by a ratio or to a fixed size, so ask the server for its size."""
+        mode = p.get("scale", "auto")
+        if mode == "original":
+            return None
+        if mode.startswith("z") and mode[1:].isdigit():
+            return "%.4f" % (int(mode[1:]) / 100.0)
+        if p.get("fullscreen", True):
+            sw, sh = self.screen_size()
+        else:
+            sw, sh = int(p.get("width", 1280)), int(p.get("height", 720))
+        if mode == "stretch":
+            return "%dx%d" % (sw, sh)
+        size = rfb_probe(host, port, p.get("password", ""))    # "fit" / "auto": needs the remote desktop size
+        if not size:
+            return None
+        return "%.4f" % min(sw / size[0], sh / size[1])
+
+    def build_vnc_cmd(self, p, host, port):
+        engine = self.vnc_engine(p)
+        if engine == "ssvnc":
+            cmd = [SSVNC, "-shared", "-noraiseonbeep", "-nograbkbd"]   # no keyboard grab: F12 and Ctrl+Alt+Shift hotkeys must reach openbox
+            if p.get("fullscreen", True):
+                cmd.append("-fullscreen")
+            else:
+                cmd += ["-geometry", "%dx%d+0+0" % (int(p.get("width", 1280)), int(p.get("height", 720)))]
+            sc = self.ssvnc_scale(p, host, port)
+            if sc:
+                cmd += ["-scale", sc]
+            cur = p.get("cursor", "auto")
+            if cur == "remote":
+                cmd.append("-nocursorshape")
+            elif cur == "arrow":
+                cmd += ["-nocursorshape", "-x11cursor"]
+            elif cur == "x11":
+                cmd.append("-x11cursor")
+        else:
             cmd = ["xtigervncviewer", "-Shared"]
             if p.get("fullscreen", True):
                 cmd.append("-FullScreen")
@@ -799,13 +1059,21 @@ class Kiosk:
             # FullscreenSystemKeys=0: do not grab the keyboard, so the Ctrl+Alt+Shift hotkeys keep working
             # DotWhenNoCursor=1: some servers send an invisible cursor; show a dot so the pointer is never lost
             cmd += ["-MenuKey", "none", "-ReconnectOnError=0", "-FullscreenSystemKeys=0", "-DotWhenNoCursor=1"]
-            if p.get("password"):
-                with open(VNC_PASS, "wb") as f:
-                    f.write(vnc_obfuscate(p["password"]))
-                os.chmod(VNC_PASS, 0o600)
-                cmd += ["-passwd", VNC_PASS]
-            cmd.append("{}::{}".format(host, port) if port else host)
-            return cmd
+            if p.get("scale", "auto") == "original":
+                cmd.append("-RemoteResize=0")        # keep the server resolution, no resize request
+            if not p.get("clipboard", True):
+                cmd += ["-SendClipboard=0", "-AcceptClipboard=0", "-SendPrimary=0", "-SetPrimary=0"]
+        if p.get("password"):
+            self.write_vnc_pass(p["password"])
+            cmd += ["-passwd", VNC_PASS]
+        cmd.append("{}::{}".format(host, port) if port else host)
+        return cmd
+
+    def build_cmd(self, p):
+        host = p["host"].strip()
+        port = p.get("port", "").strip()
+        if p["proto"] == "vnc":
+            return self.build_vnc_cmd(p, host, port)
         target = "{}:{}".format(host, port) if port else host
         cmd = ["xfreerdp3", "/v:" + target]
         if p.get("user"):
@@ -814,12 +1082,21 @@ class Kiosk:
             cmd.append("/p:" + p["password"])
         if p.get("domain"):
             cmd.append("/d:" + p["domain"])
+        scale = p.get("scale", "auto")
+        fixed = scale in ("stretch", "original")
+        size = "/size:{}x{}".format(p.get("width", 1280), p.get("height", 720))
         if p.get("fullscreen", True):
             cmd.append("/f")
             if p.get("multimon"):
                 cmd.append("/multimon")
+            if fixed:
+                cmd.append(size)
         else:
-            cmd.append("/size:{}x{}".format(p.get("width", 1280), p.get("height", 720)))
+            cmd.append(size)
+        if scale == "stretch":
+            cmd.append("/smart-sizing")                  # scale the fixed-size desktop to the window / screen
+        elif scale.startswith("ui") and scale[2:].isdigit():
+            cmd.append("/scale-desktop:" + scale[2:])    # bigger Windows UI (DPI scaling)
         cmd.append("+clipboard" if p.get("clipboard", True) else "-clipboard")
         if p.get("sound", True):
             cmd += ["/sound:sys:pulse", "/microphone:sys:pulse"]
@@ -827,8 +1104,9 @@ class Kiosk:
             cmd.append("/usb:auto")
         if p.get("ignorecert", True):
             cmd.append("/cert:ignore")
-        cmd += ["-grab-keyboard", "+auto-reconnect", "/auto-reconnect-max-retries:3",
-                "/dynamic-resolution", "/network:auto"]
+        cmd += ["-grab-keyboard", "+auto-reconnect", "/auto-reconnect-max-retries:3", "/network:auto"]
+        if not fixed:
+            cmd.append("/dynamic-resolution")
         if p.get("extra"):
             import shlex
             cmd += shlex.split(p["extra"])
@@ -929,6 +1207,14 @@ class Kiosk:
         except OSError:
             pass
         self.show_window(0)
+        try:
+            with open(CLIENT_LOG, "r", errors="replace") as f:
+                authfail = bool(AUTH_FAIL_RE.search(f.read()))
+        except OSError:
+            authfail = False
+        if authfail:   # wrong password: retrying every few seconds could lock the account out
+            self.set_status(self._("status_authfail", ""))
+            return
         self.set_status(self._("status_ended", code, tail))
         if self.cfg.data.get("autoreconnect", True) and not self.interacted:
             self.retry_left = 10 if time.time() - self.started < 15 else 3

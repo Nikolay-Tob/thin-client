@@ -118,6 +118,25 @@ if ! stage s5-installer; then
     done_stage s5-installer
 fi
 
+# SSVNC viewer (local scaling, cursor modes) and NTP client; fetched as .debs (apt refuses to install into the pruned tree)
+if ! stage s6-extras; then
+    log extras
+    mounts
+    rm -f $R/etc/resolv.conf; cp /etc/resolv.conf $R/etc/resolv.conf
+    chroot $R apt-get update -qq
+    chroot $R sh -c 'cd /tmp && apt-get download ssvnc systemd-timesyncd && dpkg -i --force-depends /tmp/systemd-timesyncd_*.deb \
+        && mkdir -p /tmp/ssvnc-x && dpkg-deb -x /tmp/ssvnc_*.deb /tmp/ssvnc-x \
+        && install -D -m 755 /tmp/ssvnc-x/usr/lib/ssvnc/vncviewer /opt/ssvnc/ssvncviewer \
+        && install -D -m 644 /tmp/ssvnc-x/usr/share/doc/ssvnc/copyright /opt/ssvnc/copyright \
+        && rm -rf /tmp/*.deb /tmp/ssvnc-x'
+    chroot $R systemctl enable systemd-timesyncd.service
+    chroot $R apt-get clean
+    rm -rf $R/var/lib/apt/lists/* $R/var/cache/apt/* $R/usr/share/man $R/usr/share/doc/systemd-timesyncd 2>/dev/null || true
+    rm -f $R/etc/resolv.conf
+    ln -s ../run/NetworkManager/resolv.conf $R/etc/resolv.conf
+    done_stage s6-extras
+fi
+
 # always refresh our own files (cheap, idempotent) so edits to overlay/ end up in the image
 cp -a "$KIT/overlay/." $R/
 chmod 755 $R/opt/kiosk/kiosk.py $R/opt/kiosk/installer.py $R/opt/kiosk/session.sh $R/usr/local/sbin/kiosk-growdata $R/usr/local/sbin/kiosk-install
