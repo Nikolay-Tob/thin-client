@@ -17,6 +17,7 @@
 - **Курсор мыши (VNC):** «Авто» (курсор сервера, точка, если его нет), «Форма курсора с сервера (X11)», «Курсор рисует сервер (в картинке)», «Локальная стрелка + курсор сервера». Если видна только точка, выберите «Курсор рисует сервер».
 - Сеть: Ethernet (DHCP или статический IP), Wi-Fi (поиск сетей, WPA-PSK, скрытые сети). Настройки сохраняются на флешке.
 - **Установка на ПК:** пункт «Установка на ПК» в меню загрузчика переносит систему на внутренний диск компьютера (BIOS и UEFI), дальше флешка не нужна.
+- **Заставка при загрузке:** логотип BIOS/UEFI компьютера (если он есть), под ним логотип и описание ООО ИК «СибИнТек». Баннер можно заменить без пересборки (см. ниже).
 - Интерфейс на русском и английском, раскладка клавиатуры English / English + Русская.
 - Корень системы только для чтения (squashfs, изменения живут в оперативной памяти): внезапное выключение систему не портит, пишется только раздел с настройками.
 - Раздел с настройками при первом запуске сам расширяется на всё свободное место флешки.
@@ -41,6 +42,10 @@
 | ![VNC вписан](docs/screens/15-vnc-fit.png) | |
 | **VNC «Вписать в экран»:** картинка 1024×768 вписана в экран с сохранением пропорций. | |
 
+| ![Заставка UEFI](docs/screens/16-boot-splash-uefi.png) | ![Заставка BIOS](docs/screens/17-boot-splash-bios.png) |
+|---|---|
+| **Заставка при загрузке (UEFI):** сверху логотип прошивки (в эмуляторе это TianoCore), ниже баннер. | **Заставка без логотипа BIOS:** баннер по центру. Здесь показан баннер, заменённый с флешки. |
+
 Скриншоты сделаны в эмуляторе QEMU с тестовыми серверами.
 
 ## Запись на флешку
@@ -60,6 +65,20 @@
 и проверяет копию; раздел с настройками занимает всё остальное место диска. На установленной системе пункта установки в меню нет.
 Диск получается с таблицей разделов MBR (как у флешки), поэтому для данных используется не более 2 ТБ. UEFI-запись «Thin client» создаётся
 автоматически, на других компьютерах загрузка идёт по пути `\EFI\BOOT\BOOTX64.EFI`.
+
+## Заставка и замена логотипа
+При загрузке показывается логотип BIOS/UEFI (берётся из таблицы ACPI BGRT, у части компьютеров его нет), под ним баннер: логотип и описание компании.
+Если логотипа BIOS нет, баннер выводится по центру. Встроенный баннер собран из `branding/logo-vertical.jpg` и `branding/text.txt`.
+
+**Заменить баннер без пересборки:** положите PNG-файл (прозрачный фон, ширина до 1000 пикселей, светлый текст) на флешку по пути `branding/banner.png`
+(раздел `KIOSKBOOT`, он виден в Windows как обычная флешка). Файл до 3 МБ. Если файла нет или он повреждён, показывается встроенный баннер.
+Готовый баннер делает скрипт `tools/make-banner.py` (нужен Pillow):
+
+    python3 tools/make-banner.py --logo logo.png --text text.txt --out banner.png
+
+В `text.txt` первая строка — название, остальные — описание. Тёмный логотип скрипт инвертирует (жёлтый цвет остаётся); `--style plate` кладёт логотип на светлую плашку.
+Чтобы изменить встроенный баннер, замените файлы в `branding/`, пересоберите баннер скриптом в `overlay/usr/share/plymouth/themes/sibintek/watermark.png` и соберите образ.
+Не проверено на реальном железе: как выглядит логотип BIOS на конкретных материнских платах и экранах.
 
 ## Первый запуск
 1. Загрузитесь с флешки (в меню выбора загрузки, обычно F8/F10/F12/Esc). Secure Boot можно оставить включённым.
@@ -119,6 +138,7 @@ DHCP и статический IP с сохранением после пере�
 - Точное сопоставление координат мыши при масштабировании на реальном железе не проверялось (проверено в QEMU).
 
 ## История изменений
+- **1.6** — заставка при загрузке: логотип BIOS/UEFI (если есть) и баннер ООО ИК «СибИнТек»; баннер заменяется файлом `branding/banner.png` на флешке; генератор баннера `tools/make-banner.py`.
 - **1.5** — VNC: выбор режима курсора и клиента (TigerVNC / SSVNC), масштабирование изображения (вписать / растянуть / 1:1 / проценты), то же для RDP. Исправлено: бесконечные повторы при неверном пароле, флаг буфера обмена VNC, уникальное имя хоста (`thin-<mac>`), синхронизация времени (NTP), диалог «Журнал» на вкладке «Система», F12 работает и поверх SSVNC, команда `reload` для горячей перезагрузки настроек.
 - **1.4** — пункт «Установка на ПК» в меню загрузчика: установка системы на внутренний диск (BIOS и UEFI, с переносом настроек и проверкой копии).
   Меню загрузчика стало графическим (с кириллицей в BIOS); если рядом стоят флешка и установленный диск с одинаковыми метками, система берёт свой раздел данных.
@@ -138,6 +158,6 @@ DHCP и статический IP с сохранением после пере�
 ## English summary
 Bootable USB thin client (Ubuntu 24.04, x86_64, BIOS + UEFI/Secure Boot) that connects straight to an RDP or VNC server at
 boot; kiosk mode, settings window via hotkeys (F12 or Ctrl+Alt+Shift+S/N/P/R/D/Space), "Install to PC" entry in the boot menu (Esc at start) copies the system to an internal disk, Ethernet/Wi-Fi/static IP, audio, clipboard,
-USB redirection, multi-monitor, Russian/English UI. VNC: choice of client (TigerVNC / SSVNC), mouse cursor mode and image scaling (fit / stretch / 1:1 / percent). Settings are stored on the flash drive (`KIOSKDATA` partition).
+USB redirection, multi-monitor, Russian/English UI. VNC: choice of client (TigerVNC / SSVNC), mouse cursor mode and image scaling (fit / stretch / 1:1 / percent). Boot splash: firmware (BIOS/UEFI) logo when available plus a company banner that can be replaced with `branding/banner.png` on the flash drive. Settings are stored on the flash drive (`KIOSKDATA` partition).
 Download `thin-client.img` from the [latest release](https://github.com/Nikolay-Tob/thin-client/releases/latest) and write it with
 Rufus/balenaEtcher (DD mode) or `dd`. Build it yourself with `sudo sh thin-client-build.sh ./out`.

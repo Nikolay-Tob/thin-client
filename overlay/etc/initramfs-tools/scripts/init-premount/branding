@@ -1,0 +1,33 @@
+#!/bin/sh
+# Runs before plymouthd (alphabetical order inside the udev group):
+#  1. no BIOS/UEFI logo (no ACPI BGRT) -> use the theme without the firmware background;
+#  2. KIOSKBOOT partition of the boot disk (FAT, readable on Windows) holds branding/banner.png -> use it instead
+#     of the built-in banner. Any failure is ignored: the built-in banner stays.
+PREREQ="udev"
+prereqs() { echo "$PREREQ"; }
+case $1 in prereqs) prereqs; exit 0;; esac
+
+[ -e /run/branding.done ] && exit 0
+: > /run/branding.done
+T=/usr/share/plymouth/themes
+grep -qw splash /proc/cmdline || exit 0
+
+if [ ! -e /sys/firmware/acpi/bgrt/image ] && [ -f /etc/plymouth/plymouthd.conf ]; then
+    sed -i 's/^Theme=.*/Theme=sibintek-nologo/' /etc/plymouth/plymouthd.conf
+fi
+
+ID=$(sed -n 's/.*root=PARTUUID=\([0-9a-fA-F]*\)-02.*/\1/p' /proc/cmdline | head -n1)
+[ -n "$ID" ] || exit 0
+n=0
+while [ ! -e "/dev/disk/by-partuuid/$ID-01" ] && [ $n -lt 40 ]; do sleep 0.2; n=$((n+1)); done
+[ -e "/dev/disk/by-partuuid/$ID-01" ] || exit 0
+modprobe vfat 2>/dev/null
+mkdir -p /run/esp
+if mount -t vfat -o ro,noexec,nodev "/dev/disk/by-partuuid/$ID-01" /run/esp 2>/dev/null; then
+    f=/run/esp/branding/banner.png
+    if [ -f "$f" ] && [ "$(wc -c < "$f")" -le 3000000 ] && [ "$(head -c 4 "$f" | tail -c 3)" = "PNG" ]; then
+        cp "$f" "$T/sibintek/watermark.png"
+    fi
+    umount /run/esp
+fi
+exit 0

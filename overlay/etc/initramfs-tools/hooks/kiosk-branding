@@ -1,0 +1,13 @@
+#!/bin/sh
+# initramfs hook: the second splash theme (no firmware logo) and the vfat driver for the branding override
+PREREQ=""
+prereqs() { echo "$PREREQ"; }
+case $1 in prereqs) prereqs; exit 0;; esac
+. /usr/share/initramfs-tools/hook-functions
+T=/usr/share/plymouth/themes
+mkdir -p "$DESTDIR$T/sibintek-nologo"
+cp -p $T/sibintek-nologo/sibintek-nologo.plymouth "$DESTDIR$T/sibintek-nologo/"
+# run the branding script right before plymouthd is started (the ORDER file does not guarantee that)
+[ -f "$DESTDIR/scripts/init-premount/plymouth" ] && sed -i 's|^SPLASH="false"|/scripts/init-premount/branding \|\| true\nSPLASH="false"|' "$DESTDIR/scripts/init-premount/plymouth"
+manual_add_modules vfat nls_cp437 nls_iso8859_1 nls_utf8
+exit 0

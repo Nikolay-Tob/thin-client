@@ -8,7 +8,7 @@ on:
     inputs:
       tag:
         description: Release tag
-        default: v1.5
+        default: v1.6
         required: true
       branch:
         description: Branch with the image parts (images/ folder)
@@ -61,7 +61,7 @@ jobs:
           gh release create "$TAG" thin-client.img thin-client.vhd SHA256SUMS.txt \
             --repo "$GITHUB_REPOSITORY" --target main \
             --title "Thin client $TAG (USB kiosk images)" \
-            --notes "Bootable USB thin client (Ubuntu 24.04, RDP/VNC kiosk). thin-client.img: write to a USB stick (dd / Rufus / balenaEtcher in DD mode), BIOS + UEFI/Secure Boot. thin-client.vhd: dynamic VHD (BIOS) for virtual machines. Checksums: SHA256SUMS.txt. 1.5: VNC scaling (fit/stretch/1:1), cursor mode and client choice (TigerVNC/SSVNC), RDP scaling, fixes; 1.4: \"Install to PC\" boot menu entry (installs to an internal disk, BIOS+UEFI); 1.3: F12 opens/hides the settings menu; 1.2: hotkeys fixed (layout switch is CapsLock now); 1.1: network settings persist across reboots."
+            --notes "Bootable USB thin client (Ubuntu 24.04, RDP/VNC kiosk). thin-client.img: write to a USB stick (dd / Rufus / balenaEtcher in DD mode), BIOS + UEFI/Secure Boot. thin-client.vhd: dynamic VHD (BIOS) for virtual machines. Checksums: SHA256SUMS.txt. 1.6: boot splash with the firmware logo and a replaceable company banner; 1.5: VNC scaling (fit/stretch/1:1), cursor mode and client choice (TigerVNC/SSVNC), RDP scaling, fixes; 1.4: \"Install to PC\" boot menu entry (installs to an internal disk, BIOS+UEFI); 1.3: F12 opens/hides the settings menu; 1.2: hotkeys fixed (layout switch is CapsLock now); 1.1: network settings persist across reboots."
 
       - name: Delete the temporary branch
         if: ${{ inputs.delete_branch && inputs.branch != 'main' }}

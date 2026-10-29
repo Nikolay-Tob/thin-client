@@ -137,6 +137,39 @@ if ! stage s6-extras; then
     done_stage s6-extras
 fi
 
+# boot splash (Plymouth, theme "sibintek": firmware/BGRT logo + company banner); .debs + dpkg as the tree is pruned
+if ! stage s7-splash; then
+    log splash
+    mounts
+    rm -f $R/etc/resolv.conf; cp /etc/resolv.conf $R/etc/resolv.conf
+    printf '#!/bin/sh\nexit 101\n' > $R/usr/sbin/policy-rc.d; chmod +x $R/usr/sbin/policy-rc.d
+    chroot $R apt-get update -qq
+    chroot $R sh -c 'cd /tmp && apt-get download plymouth libplymouth5 plymouth-label plymouth-theme-spinner && dpkg -i --force-depends /tmp/*.deb; rm -f /tmp/*.deb'
+    # plymouth-theme-spinner ships the two-step plugin; its own themes are replaced by ours
+    # two-step needs the stock UI images (lock.png etc.); take them from the spinner theme, without its animation and logo
+    rm -rf /tmp/ply-img; mkdir -p /tmp/ply-img
+    [ -d $R/usr/share/plymouth/themes/spinner ] && (cd $R/usr/share/plymouth/themes/spinner && for f in *.png; do
+        case "$f" in animation-*|watermark.png) ;; *) cp "$f" /tmp/ply-img/;; esac; done)
+    rm -rf $R/usr/share/plymouth/themes/sibintek $R/usr/share/plymouth/themes/spinner $R/usr/share/plymouth/themes/bgrt $R/usr/share/plymouth/themes/tribar
+    mkdir -p $R/usr/share/plymouth/themes/sibintek && cp /tmp/ply-img/*.png $R/usr/share/plymouth/themes/sibintek/ 2>/dev/null || true
+    # (no spinner: the theme has a single transparent animation frame, see overlay/)
+    cp -a "$KIT/overlay/." $R/
+    chmod 755 $R/etc/initramfs-tools/hooks/kiosk-branding $R/etc/initramfs-tools/scripts/init-premount/branding
+    chroot $R update-alternatives --install /usr/share/plymouth/themes/default.plymouth default.plymouth /usr/share/plymouth/themes/sibintek/sibintek.plymouth 200
+    chroot $R update-alternatives --set default.plymouth /usr/share/plymouth/themes/sibintek/sibintek.plymouth
+    # no splash on shutdown/reboot (faster, fewer moving parts)
+    chroot $R systemctl mask plymouth-poweroff.service plymouth-reboot.service plymouth-halt.service plymouth-kexec.service 2>&1 | tail -1
+    KVER=$(cat "$OUT/stamps/kver")
+    log "initramfs with splash"
+    chroot $R mkinitramfs -o /tmp/initrd.img $KVER
+    cp $R/tmp/initrd.img "$OUT/bootfiles/initrd.img"; rm -f $R/tmp/initrd.img
+    chroot $R apt-get clean
+    rm -rf $R/var/lib/apt/lists/* $R/var/cache/apt/* $R/usr/share/man $R/usr/share/doc/plymouth* $R/boot/* 2>/dev/null || true
+    rm -f $R/usr/sbin/policy-rc.d $R/etc/resolv.conf
+    ln -s ../run/NetworkManager/resolv.conf $R/etc/resolv.conf
+    done_stage s7-splash
+fi
+
 # always refresh our own files (cheap, idempotent) so edits to overlay/ end up in the image
 cp -a "$KIT/overlay/." $R/
 chmod 755 $R/opt/kiosk/kiosk.py $R/opt/kiosk/installer.py $R/opt/kiosk/session.sh $R/usr/local/sbin/kiosk-growdata $R/usr/local/sbin/kiosk-install

@@ -1,0 +1,29 @@
+[Plymouth Theme]
+Name=Thin client (with firmware logo)
+Description=Firmware (BIOS/UEFI) logo from ACPI BGRT, company banner below it
+ModuleName=two-step
+
+[two-step]
+ImageDir=/usr/share/plymouth/themes/sibintek
+HorizontalAlignment=.5
+VerticalAlignment=.72
+WatermarkHorizontalAlignment=.5
+WatermarkVerticalAlignment=.97
+Transition=none
+TransitionDuration=0.0
+BackgroundStartColor=0x15181d
+BackgroundEndColor=0x15181d
+DialogClearsFirmwareBackground=false
+MessageBelowAnimation=true
+
+[boot-up]
+UseEndAnimation=false
+UseFirmwareBackground=true
+
+[shutdown]
+UseEndAnimation=false
+UseFirmwareBackground=true
+
+[reboot]
+UseEndAnimation=false
+UseFirmwareBackground=true

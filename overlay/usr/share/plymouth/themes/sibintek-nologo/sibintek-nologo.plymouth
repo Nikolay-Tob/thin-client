@@ -1,0 +1,28 @@
+[Plymouth Theme]
+Name=Thin client (no firmware logo)
+Description=Company banner in the middle of the screen (the PC has no BIOS logo)
+ModuleName=two-step
+
+[two-step]
+ImageDir=/usr/share/plymouth/themes/sibintek
+HorizontalAlignment=.5
+VerticalAlignment=.78
+WatermarkHorizontalAlignment=.5
+WatermarkVerticalAlignment=.45
+Transition=none
+TransitionDuration=0.0
+BackgroundStartColor=0x15181d
+BackgroundEndColor=0x15181d
+MessageBelowAnimation=true
+
+[boot-up]
+UseEndAnimation=false
+UseFirmwareBackground=false
+
+[shutdown]
+UseEndAnimation=false
+UseFirmwareBackground=false
+
+[reboot]
+UseEndAnimation=false
+UseFirmwareBackground=false
